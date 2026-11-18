@@ -1,0 +1,329 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import '../models/music_models.dart';
+import '../data/mock_music_repository.dart';
+
+enum BitifyRepeatMode { off, all, one }
+
+class MusicPlayerState extends ChangeNotifier {
+  Song? _currentSong;
+  bool _isPlaying = false;
+  int _positionSeconds = 0;
+  bool _isShuffle = false;
+  BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
+  List<Song> _queue = [];
+  Timer? _playbackTicker;
+
+  // Liked songs set
+  final Set<String> _likedSongIds = {'s1', 's2', 's4', 's6'};
+
+  // Equalizer
+  final List<String> eqFrequencies = [
+    '60Hz', '170Hz', '310Hz', '600Hz', '1kHz',
+    '3kHz', '6kHz', '12kHz', '14kHz', '16kHz',
+  ];
+  List<double> _bandGains = [2.0, 3.5, 1.0, 0.0, -1.0, 2.0, 4.0, 3.0, 2.5, 3.0];
+  double _bassBoost = 0.55;
+  double _virtualizer = 0.40;
+  String _currentPreset = 'Bitify Dynamic';
+
+  // Settings
+  String _audioQuality = 'Lossless FLAC (24-bit/96kHz)';
+  int _crossfadeSeconds = 3;
+  bool _gaplessPlayback = true;
+  bool _normalizeVolume = true;
+  int? _sleepTimerMinutes;
+  Timer? _sleepTimer;
+
+  // Connected Sources
+  bool _isSpotifyConnected = true;
+  bool _isYoutubeConnected = true;
+  bool _isJiosaavnConnected = true;
+  bool _isLastFmConnected = false;
+
+  MusicPlayerState() {
+    _queue = List.from(MockMusicRepository.allSongs);
+    if (_queue.isNotEmpty) {
+      _currentSong = _queue.first;
+    }
+  }
+
+  // Getters
+  Song? get currentSong => _currentSong;
+  bool get isPlaying => _isPlaying;
+  int get positionSeconds => _positionSeconds;
+  bool get isShuffle => _isShuffle;
+  BitifyRepeatMode get repeatMode => _repeatMode;
+  List<Song> get queue => List.unmodifiable(_queue);
+  List<double> get bandGains => List.unmodifiable(_bandGains);
+  double get bassBoost => _bassBoost;
+  double get virtualizer => _virtualizer;
+  String get currentPreset => _currentPreset;
+  String get audioQuality => _audioQuality;
+  int get crossfadeSeconds => _crossfadeSeconds;
+  bool get gaplessPlayback => _gaplessPlayback;
+  bool get normalizeVolume => _normalizeVolume;
+  int? get sleepTimerMinutes => _sleepTimerMinutes;
+  bool get isSpotifyConnected => _isSpotifyConnected;
+  bool get isYoutubeConnected => _isYoutubeConnected;
+  bool get isJiosaavnConnected => _isJiosaavnConnected;
+  bool get isLastFmConnected => _isLastFmConnected;
+
+  bool isSongLiked(String id) => _likedSongIds.contains(id);
+
+  void playSong(Song song, {List<Song>? newQueue}) {
+    _currentSong = song;
+    if (newQueue != null && newQueue.isNotEmpty) {
+      _queue = List.from(newQueue);
+    } else if (!_queue.any((s) => s.id == song.id)) {
+      _queue.insert(0, song);
+    }
+    _positionSeconds = 0;
+    _isPlaying = true;
+    _startTicker();
+    notifyListeners();
+  }
+
+  void togglePlayPause() {
+    if (_currentSong == null && _queue.isNotEmpty) {
+      _currentSong = _queue.first;
+    }
+    _isPlaying = !_isPlaying;
+    if (_isPlaying) {
+      _startTicker();
+    } else {
+      _stopTicker();
+    }
+    notifyListeners();
+  }
+
+  void next() {
+    if (_queue.isEmpty || _currentSong == null) return;
+    final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
+    if (currentIndex == -1 || currentIndex >= _queue.length - 1) {
+      if (_repeatMode == BitifyRepeatMode.all) {
+        _currentSong = _queue.first;
+      } else {
+        _isPlaying = false;
+        _stopTicker();
+      }
+    } else {
+      _currentSong = _queue[currentIndex + 1];
+    }
+    _positionSeconds = 0;
+    notifyListeners();
+  }
+
+  void previous() {
+    if (_queue.isEmpty || _currentSong == null) return;
+    if (_positionSeconds > 3) {
+      _positionSeconds = 0;
+      notifyListeners();
+      return;
+    }
+    final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
+    if (currentIndex > 0) {
+      _currentSong = _queue[currentIndex - 1];
+      _positionSeconds = 0;
+    } else {
+      _positionSeconds = 0;
+    }
+    notifyListeners();
+  }
+
+  void seekTo(int seconds) {
+    if (_currentSong != null) {
+      _positionSeconds = seconds.clamp(0, _currentSong!.durationSeconds);
+      notifyListeners();
+    }
+  }
+
+  void toggleLike(String songId) {
+    if (_likedSongIds.contains(songId)) {
+      _likedSongIds.remove(songId);
+    } else {
+      _likedSongIds.add(songId);
+    }
+    notifyListeners();
+  }
+
+  void toggleShuffle() {
+    _isShuffle = !_isShuffle;
+    if (_isShuffle && _currentSong != null) {
+      final current = _currentSong!;
+      final others = _queue.where((s) => s.id != current.id).toList()..shuffle();
+      _queue = [current, ...others];
+    } else {
+      _queue = List.from(MockMusicRepository.allSongs);
+    }
+    notifyListeners();
+  }
+
+  void toggleRepeat() {
+    switch (_repeatMode) {
+      case BitifyRepeatMode.off:
+        _repeatMode = BitifyRepeatMode.all;
+        break;
+      case BitifyRepeatMode.all:
+        _repeatMode = BitifyRepeatMode.one;
+        break;
+      case BitifyRepeatMode.one:
+        _repeatMode = BitifyRepeatMode.off;
+        break;
+    }
+    notifyListeners();
+  }
+
+  void setBandGain(int index, double gain) {
+    if (index >= 0 && index < _bandGains.length) {
+      _bandGains[index] = gain.clamp(-12.0, 12.0);
+      _currentPreset = 'Custom';
+      notifyListeners();
+    }
+  }
+
+  void setBassBoost(double value) {
+    _bassBoost = value.clamp(0.0, 1.0);
+    notifyListeners();
+  }
+
+  void setVirtualizer(double value) {
+    _virtualizer = value.clamp(0.0, 1.0);
+    notifyListeners();
+  }
+
+  void applyPreset(String preset) {
+    _currentPreset = preset;
+    switch (preset) {
+      case 'Bass Boost':
+        _bandGains = [8.0, 7.0, 5.0, 2.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0];
+        _bassBoost = 0.90;
+        break;
+      case 'EDM / Dance':
+        _bandGains = [6.0, 5.0, 2.0, 0.0, 1.0, 3.0, 5.0, 6.0, 5.0, 4.0];
+        _bassBoost = 0.70;
+        break;
+      case 'Acoustic / Vocal':
+        _bandGains = [1.0, 1.0, 2.0, 4.0, 5.0, 5.0, 4.0, 2.0, 1.0, 0.0];
+        _bassBoost = 0.20;
+        break;
+      case 'Rock':
+        _bandGains = [5.0, 4.0, 2.0, -1.0, -1.0, 1.0, 3.0, 5.0, 6.0, 6.0];
+        _bassBoost = 0.60;
+        break;
+      case 'Flat':
+        _bandGains = List.filled(10, 0.0);
+        _bassBoost = 0.0;
+        _virtualizer = 0.0;
+        break;
+      case 'Bitify Dynamic':
+      default:
+        _bandGains = [2.0, 3.5, 1.0, 0.0, -1.0, 2.0, 4.0, 3.0, 2.5, 3.0];
+        _bassBoost = 0.55;
+        _virtualizer = 0.40;
+        break;
+    }
+    notifyListeners();
+  }
+
+  void setAudioQuality(String quality) {
+    _audioQuality = quality;
+    notifyListeners();
+  }
+
+  void setCrossfade(int seconds) {
+    _crossfadeSeconds = seconds;
+    notifyListeners();
+  }
+
+  void toggleGapless(bool value) {
+    _gaplessPlayback = value;
+    notifyListeners();
+  }
+
+  void toggleNormalize(bool value) {
+    _normalizeVolume = value;
+    notifyListeners();
+  }
+
+  void setSleepTimer(int minutes) {
+    _sleepTimerMinutes = minutes;
+    _sleepTimer?.cancel();
+    _sleepTimer = Timer(Duration(minutes: minutes), () {
+      _isPlaying = false;
+      _stopTicker();
+      _sleepTimerMinutes = null;
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimerMinutes = null;
+    notifyListeners();
+  }
+
+  void toggleLastFm() {
+    _isLastFmConnected = !_isLastFmConnected;
+    notifyListeners();
+  }
+
+  void toggleSourceConnection(MusicSource source) {
+    switch (source) {
+      case MusicSource.spotify:
+        _isSpotifyConnected = !_isSpotifyConnected;
+        break;
+      case MusicSource.youtube:
+        _isYoutubeConnected = !_isYoutubeConnected;
+        break;
+      case MusicSource.jiosaavn:
+        _isJiosaavnConnected = !_isJiosaavnConnected;
+        break;
+      case MusicSource.local:
+        break;
+    }
+    notifyListeners();
+  }
+
+  void removeFromQueue(int index) {
+    if (index >= 0 && index < _queue.length) {
+      _queue.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, item);
+    notifyListeners();
+  }
+
+  void _startTicker() {
+    _playbackTicker?.cancel();
+    _playbackTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_currentSong != null && _isPlaying) {
+        if (_positionSeconds >= _currentSong!.durationSeconds) {
+          next();
+        } else {
+          _positionSeconds++;
+          notifyListeners();
+        }
+      }
+    });
+  }
+
+  void _stopTicker() {
+    _playbackTicker?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _playbackTicker?.cancel();
+    _sleepTimer?.cancel();
+    super.dispose();
+  }
+}
