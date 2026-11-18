@@ -54,12 +54,15 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: Bitify v1.0.0 Release
+          tag_name: v1.0.1
+          name: Bitify v1.0.1 (Real Audio Playback Engine)
           body: |
-            ### 🎵 Bitify v1.0.0 (Release APK)
-            Fresh music streaming app replicating BitChord with a brand-new dark neon UI!
-            
+            ### 🎵 Bitify v1.0.1 (Real Audio Playback Release)
+            - Added Android INTERNET permissions & cleartext traffic permissions.
+            - Integrated native `audioplayers` engine for real sound playback through phone speakers.
+            - Configured live high-fidelity audio streams for all tracks.
+            - Real-time seek, pause, resume, and queue audio handling.
+
             **Direct Download:**
             Download `app-release.apk` below and open it on your Android device to install.
           files: build/app/outputs/flutter-apk/app-release.apk

@@ -1,18 +1,25 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
 
 enum BitifyRepeatMode { off, all, one }
 
 class MusicPlayerState extends ChangeNotifier {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  
   Song? _currentSong;
   bool _isPlaying = false;
   int _positionSeconds = 0;
   bool _isShuffle = false;
   BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
   List<Song> _queue = [];
-  Timer? _playbackTicker;
+
+  // Stream subscriptions
+  StreamSubscription? _posSub;
+  StreamSubscription? _stateSub;
+  StreamSubscription? _completeSub;
 
   // Liked songs set
   final Set<String> _likedSongIds = {'s1', 's2', 's4', 's6'};
@@ -46,6 +53,33 @@ class MusicPlayerState extends ChangeNotifier {
     if (_queue.isNotEmpty) {
       _currentSong = _queue.first;
     }
+    _initAudioListeners();
+  }
+
+  void _initAudioListeners() {
+    _posSub = _audioPlayer.onPositionChanged.listen((pos) {
+      _positionSeconds = pos.inSeconds;
+      notifyListeners();
+    });
+
+    _stateSub = _audioPlayer.onPlayerStateChanged.listen((state) {
+      final playing = state == PlayerState.playing;
+      if (_isPlaying != playing) {
+        _isPlaying = playing;
+        notifyListeners();
+      }
+    });
+
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (_repeatMode == BitifyRepeatMode.one) {
+        if (_currentSong?.audioUrl != null) {
+          _audioPlayer.seek(Duration.zero);
+          _audioPlayer.resume();
+        }
+      } else {
+        next();
+      }
+    });
   }
 
   // Getters
@@ -71,7 +105,7 @@ class MusicPlayerState extends ChangeNotifier {
 
   bool isSongLiked(String id) => _likedSongIds.contains(id);
 
-  void playSong(Song song, {List<Song>? newQueue}) {
+  Future<void> playSong(Song song, {List<Song>? newQueue}) async {
     _currentSong = song;
     if (newQueue != null && newQueue.isNotEmpty) {
       _queue = List.from(newQueue);
@@ -80,21 +114,42 @@ class MusicPlayerState extends ChangeNotifier {
     }
     _positionSeconds = 0;
     _isPlaying = true;
-    _startTicker();
     notifyListeners();
+
+    try {
+      if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
+        await _audioPlayer.stop();
+        await _audioPlayer.play(UrlSource(song.audioUrl!));
+      }
+    } catch (e) {
+      debugPrint('Error playing audio: $e');
+    }
   }
 
-  void togglePlayPause() {
+  Future<void> togglePlayPause() async {
     if (_currentSong == null && _queue.isNotEmpty) {
       _currentSong = _queue.first;
     }
-    _isPlaying = !_isPlaying;
-    if (_isPlaying) {
-      _startTicker();
-    } else {
-      _stopTicker();
+    if (_currentSong == null) return;
+
+    try {
+      if (_isPlaying) {
+        await _audioPlayer.pause();
+        _isPlaying = false;
+      } else {
+        if (_currentSong?.audioUrl != null) {
+          if (_positionSeconds > 0) {
+            await _audioPlayer.resume();
+          } else {
+            await _audioPlayer.play(UrlSource(_currentSong!.audioUrl!));
+          }
+        }
+        _isPlaying = true;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error toggling play/pause: $e');
     }
-    notifyListeners();
   }
 
   void next() {
@@ -102,39 +157,40 @@ class MusicPlayerState extends ChangeNotifier {
     final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
     if (currentIndex == -1 || currentIndex >= _queue.length - 1) {
       if (_repeatMode == BitifyRepeatMode.all) {
-        _currentSong = _queue.first;
+        playSong(_queue.first);
       } else {
         _isPlaying = false;
-        _stopTicker();
+        _audioPlayer.stop();
+        notifyListeners();
       }
     } else {
-      _currentSong = _queue[currentIndex + 1];
+      playSong(_queue[currentIndex + 1]);
     }
-    _positionSeconds = 0;
-    notifyListeners();
   }
 
   void previous() {
     if (_queue.isEmpty || _currentSong == null) return;
     if (_positionSeconds > 3) {
-      _positionSeconds = 0;
-      notifyListeners();
+      seekTo(0);
       return;
     }
     final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
     if (currentIndex > 0) {
-      _currentSong = _queue[currentIndex - 1];
-      _positionSeconds = 0;
+      playSong(_queue[currentIndex - 1]);
     } else {
-      _positionSeconds = 0;
+      seekTo(0);
     }
-    notifyListeners();
   }
 
-  void seekTo(int seconds) {
+  Future<void> seekTo(int seconds) async {
     if (_currentSong != null) {
       _positionSeconds = seconds.clamp(0, _currentSong!.durationSeconds);
       notifyListeners();
+      try {
+        await _audioPlayer.seek(Duration(seconds: _positionSeconds));
+      } catch (e) {
+        debugPrint('Error seeking: $e');
+      }
     }
   }
 
@@ -251,7 +307,7 @@ class MusicPlayerState extends ChangeNotifier {
     _sleepTimer?.cancel();
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       _isPlaying = false;
-      _stopTicker();
+      _audioPlayer.pause();
       _sleepTimerMinutes = null;
       notifyListeners();
     });
@@ -302,27 +358,12 @@ class MusicPlayerState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _startTicker() {
-    _playbackTicker?.cancel();
-    _playbackTicker = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_currentSong != null && _isPlaying) {
-        if (_positionSeconds >= _currentSong!.durationSeconds) {
-          next();
-        } else {
-          _positionSeconds++;
-          notifyListeners();
-        }
-      }
-    });
-  }
-
-  void _stopTicker() {
-    _playbackTicker?.cancel();
-  }
-
   @override
   void dispose() {
-    _playbackTicker?.cancel();
+    _posSub?.cancel();
+    _stateSub?.cancel();
+    _completeSub?.cancel();
+    _audioPlayer.dispose();
     _sleepTimer?.cancel();
     super.dispose();
   }
