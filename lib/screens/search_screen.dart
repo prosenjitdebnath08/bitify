@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../data/mock_music_repository.dart';
 import '../models/music_models.dart';
+import '../services/music_api_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/song_tile.dart';
@@ -18,25 +19,48 @@ class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
   MusicSource? _selectedSource;
   String _query = '';
+  List<Song> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onQueryChanged(String query) {
+    _debounceTimer?.cancel();
+    setState(() {
+      _query = query;
+    });
+
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
+      setState(() => _isSearching = true);
+      final results = await MusicApiService.searchOnline(query.trim());
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allSongs = MockMusicRepository.allSongs;
-    final filteredSongs = allSongs.where((song) {
-      final matchesQuery = _query.isEmpty ||
-          song.title.toLowerCase().contains(_query.toLowerCase()) ||
-          song.artist.toLowerCase().contains(_query.toLowerCase()) ||
-          song.album.toLowerCase().contains(_query.toLowerCase());
-
-      final matchesSource = _selectedSource == null || song.source == _selectedSource;
-
-      return matchesQuery && matchesSource;
+    final filteredSongs = _searchResults.where((song) {
+      if (_selectedSource == null) return true;
+      return song.source == _selectedSource;
     }).toList();
 
     return Scaffold(
@@ -58,15 +82,15 @@ class _SearchScreenState extends State<SearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.07),
+                color: Colors.white.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: TextField(
                 controller: _searchController,
                 style: const TextStyle(color: Colors.white, fontSize: 15),
                 decoration: InputDecoration(
-                  hintText: 'Search songs, artists, albums, or lyrics...',
+                  hintText: 'Search any song, artist, album in the world...',
                   hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 14),
                   prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primaryLight),
                   suffixIcon: _query.isNotEmpty
@@ -74,16 +98,14 @@ class _SearchScreenState extends State<SearchScreen> {
                           icon: const Icon(Icons.close_rounded, color: Colors.white70),
                           onPressed: () {
                             _searchController.clear();
-                            setState(() => _query = '');
+                            _onQueryChanged('');
                           },
                         )
                       : null,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                onChanged: (val) {
-                  setState(() => _query = val);
-                },
+                onChanged: _onQueryChanged,
               ),
             ),
           ),
@@ -119,11 +141,25 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Results or Browse Categories
+          // Loading, Results, or Browse Categories
           Expanded(
-            child: _query.isEmpty
-                ? _buildBrowseCategories()
-                : _buildSearchResults(filteredSongs),
+            child: _isSearching
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: AppTheme.primary),
+                        SizedBox(height: 14),
+                        Text(
+                          'Searching across Spotify, YouTube Music & JioSaavn...',
+                          style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  )
+                : _query.isEmpty
+                    ? _buildBrowseCategories()
+                    : _buildSearchResults(filteredSongs),
           ),
         ],
       ),
@@ -147,10 +183,10 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+          color: isSelected ? activeColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? activeColor : Colors.white.withOpacity(0.1),
+            color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.1),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -192,7 +228,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Try searching with a different keyword or source filter',
+              'Try searching with another keyword or select All Sources',
               style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
             ),
           ],
@@ -221,19 +257,19 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildBrowseCategories() {
     final categories = [
-      {'name': 'Podcasts', 'color': 0xFF6366F1, 'icon': Icons.podcasts_rounded},
-      {'name': 'Bollywood & Punjabi', 'color': 0xFFF59E0B, 'icon': Icons.music_note_rounded},
-      {'name': 'Synthwave & Retro', 'color': 0xFFEC4899, 'icon': Icons.nightlife_rounded},
-      {'name': 'Indie & Alternative', 'color': 0xFF10B981, 'icon': Icons.eco_rounded},
-      {'name': 'Gaming Beats', 'color': 0xFF06B6D4, 'icon': Icons.sports_esports_rounded},
-      {'name': 'Workout & Energy', 'color': 0xFFEF4444, 'icon': Icons.fitness_center_rounded},
+      {'name': 'Top Global 2026', 'query': 'Top Global Hits 2026', 'color': 0xFF6366F1, 'icon': Icons.public_rounded},
+      {'name': 'Bollywood & Desi', 'query': 'Arijit Singh Pritam Hits', 'color': 0xFFF59E0B, 'icon': Icons.music_note_rounded},
+      {'name': 'Synthwave & Retro', 'query': 'Synthwave Electronic Hits', 'color': 0xFFEC4899, 'icon': Icons.nightlife_rounded},
+      {'name': 'Pop & Trending', 'query': 'Dua Lipa Weeknd Pop', 'color': 0xFF10B981, 'icon': Icons.trending_up_rounded},
+      {'name': 'Lo-Fi Chill Beats', 'query': 'Lofi Chill Study', 'color': 0xFF06B6D4, 'icon': Icons.cloud_rounded},
+      {'name': 'Workout & Energy', 'query': 'Workout Energy Rock', 'color': 0xFFEF4444, 'icon': Icons.fitness_center_rounded},
     ];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
         const Text(
-          'Browse Categories',
+          'Quick Search Categories',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -255,28 +291,35 @@ class _SearchScreenState extends State<SearchScreen> {
             final cat = categories[i];
             final color = Color(cat['color'] as int);
 
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withOpacity(0.35)),
-              ),
-              child: Row(
-                children: [
-                  Icon(cat['icon'] as IconData, color: color, size: 24),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      cat['name'] as String,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+            return InkWell(
+              onTap: () {
+                _searchController.text = cat['name'] as String;
+                _onQueryChanged(cat['query'] as String);
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: color.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(cat['icon'] as IconData, color: color, size: 24),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        cat['name'] as String,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },

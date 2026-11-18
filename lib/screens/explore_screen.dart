@@ -12,7 +12,7 @@ class ExploreScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songs = MockMusicRepository.allSongs;
+    final songs = state.onlineTrending;
     final artists = MockMusicRepository.artists;
     final albums = MockMusicRepository.albums;
 

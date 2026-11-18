@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
+import '../services/music_api_service.dart';
 
 enum BitifyRepeatMode { off, all, one }
 
@@ -15,6 +16,8 @@ class MusicPlayerState extends ChangeNotifier {
   bool _isShuffle = false;
   BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
   List<Song> _queue = [];
+  List<Song> _onlineTrending = [];
+  bool _isLoadingOnline = false;
 
   // Stream subscriptions
   StreamSubscription? _posSub;
@@ -54,6 +57,7 @@ class MusicPlayerState extends ChangeNotifier {
       _currentSong = _queue.first;
     }
     _initAudioListeners();
+    _loadOnlineTrendingCatalog();
   }
 
   void _initAudioListeners() {
@@ -82,6 +86,30 @@ class MusicPlayerState extends ChangeNotifier {
     });
   }
 
+  Future<void> _loadOnlineTrendingCatalog() async {
+    _isLoadingOnline = true;
+    notifyListeners();
+
+    try {
+      final fetched = await MusicApiService.fetchTrendingSongs();
+      if (fetched.isNotEmpty) {
+        _onlineTrending = fetched;
+        // Merge into available library
+        final existingIds = _queue.map((s) => s.id).toSet();
+        for (final s in fetched) {
+          if (!existingIds.contains(s.id)) {
+            _queue.add(s);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading online catalog: $e');
+    } finally {
+      _isLoadingOnline = false;
+      notifyListeners();
+    }
+  }
+
   // Getters
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -89,6 +117,8 @@ class MusicPlayerState extends ChangeNotifier {
   bool get isShuffle => _isShuffle;
   BitifyRepeatMode get repeatMode => _repeatMode;
   List<Song> get queue => List.unmodifiable(_queue);
+  List<Song> get onlineTrending => List.unmodifiable(_onlineTrending.isNotEmpty ? _onlineTrending : _queue);
+  bool get isLoadingOnline => _isLoadingOnline;
   List<double> get bandGains => List.unmodifiable(_bandGains);
   double get bassBoost => _bassBoost;
   double get virtualizer => _virtualizer;

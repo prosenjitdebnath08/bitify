@@ -12,7 +12,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songs = MockMusicRepository.allSongs;
+    final songs = state.onlineTrending;
     final playlists = MockMusicRepository.playlists;
     final moodGenres = MockMusicRepository.moodGenres;
 
@@ -286,17 +286,17 @@ class HomeScreen extends StatelessWidget {
                   // Section: Trending Across Platforms
                   _buildSectionHeader(
                     'Trending Across Platforms',
-                    subtitle: 'Aggregated from YouTube Music, Spotify & JioSaavn',
+                    subtitle: 'Aggregated from YouTube Music, Spotify & JioSaavn (${songs.length} Tracks)',
                   ),
                   const SizedBox(height: 8),
-                  ...songs.take(5).map((song) {
+                  ...songs.take(15).map((song) {
                     final isCurrent = song.id == state.currentSong?.id;
                     return SongTile(
                       song: song,
                       isCurrent: isCurrent,
                       isPlaying: state.isPlaying && isCurrent,
                       isLiked: state.isSongLiked(song.id),
-                      onTap: () => state.playSong(song),
+                      onTap: () => state.playSong(song, newQueue: songs),
                       onLikeTap: () => state.toggleLike(song.id),
                     );
                   }),
