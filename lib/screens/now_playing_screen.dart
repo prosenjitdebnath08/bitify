@@ -33,13 +33,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           );
         }
 
-        final currentSeconds = widget.state.positionSeconds;
-        final totalSeconds = song.durationSeconds;
-        final progress = totalSeconds > 0
-            ? (currentSeconds / totalSeconds).clamp(0.0, 1.0)
-            : 0.0;
+        final duration = widget.state.durationSeconds > 0
+            ? widget.state.durationSeconds
+            : (song.durationSeconds > 0 ? song.durationSeconds : 180);
+        final currentSeconds = widget.state.positionSeconds.clamp(0, duration);
+        final progress = (currentSeconds / duration).clamp(0.0, 1.0);
 
-        return Scaffold(
+        return GestureDetector(
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity == null) return;
+            if (details.primaryVelocity! < -180) {
+              widget.state.next();
+            } else if (details.primaryVelocity! > 180) {
+              widget.state.previous();
+            }
+          },
+          behavior: HitTestBehavior.translucent,
+          child: Scaffold(
           backgroundColor: AppTheme.background,
           body: Stack(
             children: [
@@ -254,7 +264,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             setState(() {
                               _isDraggingSeek = false;
                             });
-                            widget.state.seekTo((val * totalSeconds).toInt());
+                            widget.state.seekTo((val * duration).toInt());
                           },
                         ),
                       ),
@@ -267,7 +277,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           children: [
                             Text(
                               _formatSeconds(_isDraggingSeek
-                                  ? (_dragSeekValue * totalSeconds).toInt()
+                                  ? (_dragSeekValue * duration).toInt()
                                   : currentSeconds),
                               style: const TextStyle(
                                 color: AppTheme.textMuted,
@@ -276,7 +286,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ),
                             ),
                             Text(
-                              song.formattedDuration,
+                              _formatSeconds(duration),
                               style: const TextStyle(
                                 color: AppTheme.textMuted,
                                 fontSize: 12,
@@ -419,9 +429,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   Widget _buildLyricsView(Song song, int currentSeconds) {

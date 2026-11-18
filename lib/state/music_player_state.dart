@@ -13,6 +13,7 @@ class MusicPlayerState extends ChangeNotifier {
   Song? _currentSong;
   bool _isPlaying = false;
   int _positionSeconds = 0;
+  int _durationSeconds = 0;
   bool _isShuffle = false;
   BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
   List<Song> _queue = [];
@@ -21,6 +22,7 @@ class MusicPlayerState extends ChangeNotifier {
 
   // Stream subscriptions
   StreamSubscription? _posSub;
+  StreamSubscription? _durSub;
   StreamSubscription? _stateSub;
   StreamSubscription? _completeSub;
 
@@ -38,7 +40,7 @@ class MusicPlayerState extends ChangeNotifier {
   String _currentPreset = 'Bitify Dynamic';
 
   // Settings
-  String _audioQuality = 'Lossless FLAC (24-bit/96kHz)';
+  String _audioQuality = 'High Quality (256 kbps MP3)';
   int _crossfadeSeconds = 3;
   bool _gaplessPlayback = true;
   bool _normalizeVolume = true;
@@ -55,6 +57,7 @@ class MusicPlayerState extends ChangeNotifier {
     _queue = List.from(MockMusicRepository.allSongs);
     if (_queue.isNotEmpty) {
       _currentSong = _queue.first;
+      _durationSeconds = _currentSong!.durationSeconds;
     }
     _initAudioListeners();
     _loadOnlineTrendingCatalog();
@@ -64,6 +67,13 @@ class MusicPlayerState extends ChangeNotifier {
     _posSub = _audioPlayer.onPositionChanged.listen((pos) {
       _positionSeconds = pos.inSeconds;
       notifyListeners();
+    });
+
+    _durSub = _audioPlayer.onDurationChanged.listen((dur) {
+      if (dur.inSeconds > 0) {
+        _durationSeconds = dur.inSeconds;
+        notifyListeners();
+      }
     });
 
     _stateSub = _audioPlayer.onPlayerStateChanged.listen((state) {
@@ -94,7 +104,6 @@ class MusicPlayerState extends ChangeNotifier {
       final fetched = await MusicApiService.fetchTrendingSongs();
       if (fetched.isNotEmpty) {
         _onlineTrending = fetched;
-        // Merge into available library
         final existingIds = _queue.map((s) => s.id).toSet();
         for (final s in fetched) {
           if (!existingIds.contains(s.id)) {
@@ -114,6 +123,9 @@ class MusicPlayerState extends ChangeNotifier {
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
   int get positionSeconds => _positionSeconds;
+  int get durationSeconds => _durationSeconds > 0
+      ? _durationSeconds
+      : (_currentSong?.durationSeconds ?? 180);
   bool get isShuffle => _isShuffle;
   BitifyRepeatMode get repeatMode => _repeatMode;
   List<Song> get queue => List.unmodifiable(_queue);
@@ -142,8 +154,9 @@ class MusicPlayerState extends ChangeNotifier {
     } else if (!_queue.any((s) => s.id == song.id)) {
       _queue.insert(0, song);
     }
-    // Always reset playback position to 0 for a new track
+    // Always start playback cleanly from 0:00 (the very beginning)
     _positionSeconds = 0;
+    _durationSeconds = song.durationSeconds;
     _isPlaying = true;
     notifyListeners();
 
@@ -173,6 +186,7 @@ class MusicPlayerState extends ChangeNotifier {
           if (_positionSeconds > 0) {
             await _audioPlayer.resume();
           } else {
+            await _audioPlayer.seek(Duration.zero);
             await _audioPlayer.play(UrlSource(_currentSong!.audioUrl!));
           }
         }
@@ -215,14 +229,13 @@ class MusicPlayerState extends ChangeNotifier {
   }
 
   Future<void> seekTo(int seconds) async {
-    if (_currentSong != null) {
-      _positionSeconds = seconds.clamp(0, _currentSong!.durationSeconds);
-      notifyListeners();
-      try {
-        await _audioPlayer.seek(Duration(seconds: _positionSeconds));
-      } catch (e) {
-        debugPrint('Error seeking: $e');
-      }
+    final maxDur = durationSeconds;
+    _positionSeconds = seconds.clamp(0, maxDur);
+    notifyListeners();
+    try {
+      await _audioPlayer.seek(Duration(seconds: _positionSeconds));
+    } catch (e) {
+      debugPrint('Error seeking: $e');
     }
   }
 
@@ -393,6 +406,7 @@ class MusicPlayerState extends ChangeNotifier {
   @override
   void dispose() {
     _posSub?.cancel();
+    _durSub?.cancel();
     _stateSub?.cancel();
     _completeSub?.cancel();
     _audioPlayer.dispose();
