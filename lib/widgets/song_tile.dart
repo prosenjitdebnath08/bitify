@@ -125,12 +125,21 @@ class SongTile extends StatelessWidget {
               color: AppTheme.surfaceElevated,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               onSelected: (val) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$val: "${song.title}"'),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
+                if (val == 'Download') {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Downloading "${song.title}" in 256kbps...'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$val: "${song.title}"'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                }
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(
@@ -154,12 +163,12 @@ class SongTile extends StatelessWidget {
                   ),
                 ),
                 const PopupMenuItem(
-                  value: 'Download Offline',
+                  value: 'Download',
                   child: Row(
                     children: [
                       Icon(Icons.download_rounded, size: 18, color: Colors.white70),
                       SizedBox(width: 10),
-                      Text('Download Lossless (FLAC)'),
+                      Text('Download (256kbps)'),
                     ],
                   ),
                 ),

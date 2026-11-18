@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
+import '../services/update_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/update_dialog.dart';
 import 'equalizer_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -96,12 +98,12 @@ class SettingsScreen extends StatelessWidget {
                         onSelected: state.setAudioQuality,
                         itemBuilder: (context) => [
                           const PopupMenuItem(
-                            value: 'Lossless FLAC (24-bit/96kHz)',
-                            child: Text('Lossless FLAC (24-bit/96kHz) • Audiophile'),
+                            value: 'High Quality (256 kbps MP3)',
+                            child: Text('High Quality (256 kbps MP3) • Recommended'),
                           ),
                           const PopupMenuItem(
-                            value: 'High Quality (320 kbps AAC)',
-                            child: Text('High Quality (320 kbps AAC)'),
+                            value: 'Lossless FLAC (24-bit/96kHz)',
+                            child: Text('Lossless FLAC (24-bit/96kHz) • Audiophile'),
                           ),
                           const PopupMenuItem(
                             value: 'Standard (160 kbps)',
@@ -230,6 +232,47 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Section: App Updates
+              _buildSectionTitle('UPDATES & VERSIONS'),
+              const SizedBox(height: 8),
+              GlassCard(
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.secondary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.system_update_rounded, color: AppTheme.secondary, size: 22),
+                  ),
+                  title: const Text('Check for Updates', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Current: ${UpdateService.currentVersion} • GitHub Auto-Sync', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  trailing: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Checking GitHub for updates...'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                      final info = await UpdateService.checkForUpdate();
+                      if (context.mounted) {
+                        showBitifyUpdateDialog(context, info);
+                      }
+                    },
+                    child: const Text('Check Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

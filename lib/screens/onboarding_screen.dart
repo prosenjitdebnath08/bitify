@@ -77,31 +77,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Giant Glowing Icon Card
-                        Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: colors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
+                        // Giant Glowing Logo / Icon Card
+                        if (index == 0)
+                          Container(
+                            width: 140,
+                            height: 140,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(32),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.primary.withOpacity(0.4),
+                                  blurRadius: 40,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: colors.first.withOpacity(0.4),
-                                blurRadius: 40,
-                                offset: const Offset(0, 10),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(32),
+                              child: Image.asset('assets/bitify_logo.png', fit: BoxFit.cover),
+                            ),
+                          )
+                        else
+                          Container(
+                            width: 130,
+                            height: 130,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: colors,
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
+                              boxShadow: [
+                                BoxShadow(
+                                  color: colors.first.withOpacity(0.4),
+                                  blurRadius: 40,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              page['icon'] as IconData,
+                              size: 64,
+                              color: Colors.white,
+                            ),
                           ),
-                          child: Icon(
-                            page['icon'] as IconData,
-                            size: 64,
-                            color: Colors.white,
-                          ),
-                        ),
                         const SizedBox(height: 40),
 
                         // Badge

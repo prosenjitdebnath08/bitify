@@ -258,7 +258,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
               ),
               const SizedBox(height: 8),
               const Text(
-                '4 Tracks stored in 24-bit Lossless FLAC format',
+                '4 Tracks stored in 256kbps High Quality MP3 format',
                 style: TextStyle(color: AppTheme.textMuted, fontSize: 11),
               ),
             ],

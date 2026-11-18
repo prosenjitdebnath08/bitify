@@ -21,6 +21,14 @@ class MiniPlayerBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity == null) return;
+          if (details.primaryVelocity! < -250) {
+            state.next();
+          } else if (details.primaryVelocity! > 250) {
+            state.previous();
+          }
+        },
         onTap: () {
           Navigator.of(context).push(
             PageRouteBuilder(

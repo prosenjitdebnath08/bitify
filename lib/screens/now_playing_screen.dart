@@ -17,6 +17,8 @@ class NowPlayingScreen extends StatefulWidget {
 
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _showLyrics = false;
+  bool _isDraggingSeek = false;
+  double _dragSeekValue = 0.0;
 
   @override
   Widget build(BuildContext context) {
@@ -115,42 +117,52 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
                       const Spacer(),
 
-                      // Center Artwork or Synced Lyrics
-                      if (!_showLyrics)
-                        Center(
-                          child: Container(
-                            width: 290,
-                            height: 290,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primary.withOpacity(0.35),
-                                  blurRadius: 36,
-                                  offset: const Offset(0, 16),
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.5),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(28),
-                              child: Image.network(
-                                song.coverUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  color: AppTheme.surfaceElevated,
-                                  child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                      // Center Artwork or Synced Lyrics (Swipe horizontally for Next/Previous song)
+                      GestureDetector(
+                        onHorizontalDragEnd: (details) {
+                          if (details.primaryVelocity == null) return;
+                          if (details.primaryVelocity! < -250) {
+                            widget.state.next();
+                          } else if (details.primaryVelocity! > 250) {
+                            widget.state.previous();
+                          }
+                        },
+                        behavior: HitTestBehavior.opaque,
+                        child: _showLyrics
+                            ? _buildLyricsView(song, currentSeconds)
+                            : Center(
+                                child: Container(
+                                  width: 290,
+                                  height: 290,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(28),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primary.withOpacity(0.35),
+                                        blurRadius: 36,
+                                        offset: const Offset(0, 16),
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(28),
+                                    child: Image.network(
+                                      song.coverUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: AppTheme.surfaceElevated,
+                                        child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                        )
-                      else
-                        _buildLyricsView(song, currentSeconds),
+                      ),
 
                       const Spacer(),
 
@@ -215,7 +227,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Custom Seekbar
+                      // Custom Seekbar with Smooth Scrubbing
                       SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           trackHeight: 4,
@@ -226,8 +238,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           thumbColor: Colors.white,
                         ),
                         child: Slider(
-                          value: progress,
+                          value: _isDraggingSeek ? _dragSeekValue : progress,
+                          onChangeStart: (val) {
+                            setState(() {
+                              _isDraggingSeek = true;
+                              _dragSeekValue = val;
+                            });
+                          },
                           onChanged: (val) {
+                            setState(() {
+                              _dragSeekValue = val;
+                            });
+                          },
+                          onChangeEnd: (val) {
+                            setState(() {
+                              _isDraggingSeek = false;
+                            });
                             widget.state.seekTo((val * totalSeconds).toInt());
                           },
                         ),
@@ -240,7 +266,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              _formatSeconds(currentSeconds),
+                              _formatSeconds(_isDraggingSeek
+                                  ? (_dragSeekValue * totalSeconds).toInt()
+                                  : currentSeconds),
                               style: const TextStyle(
                                 color: AppTheme.textMuted,
                                 fontSize: 12,
@@ -463,12 +491,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.download_rounded, color: Colors.white70),
-              title: const Text('Download FLAC Audio'),
-              subtitle: const Text('24-bit / 96kHz Lossless Master', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+              title: const Text('Download'),
+              subtitle: const Text('256kbps High Quality Audio', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
               onTap: () {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Downloading "${song.title}" in Lossless Master...')),
+                  SnackBar(content: Text('Downloading "${song.title}" in 256kbps...')),
                 );
               },
             ),

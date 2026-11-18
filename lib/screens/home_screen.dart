@@ -1,17 +1,42 @@
 import 'package:flutter/material.dart';
 import '../data/mock_music_repository.dart';
+import '../services/update_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/update_dialog.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final MusicPlayerState state;
 
   const HomeScreen({super.key, required this.state});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  UpdateInfo? _updateInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAppUpdate();
+  }
+
+  Future<void> _checkAppUpdate() async {
+    final info = await UpdateService.checkForUpdate();
+    if (mounted) {
+      setState(() {
+        _updateInfo = info;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final state = widget.state;
     final songs = state.onlineTrending;
     final playlists = MockMusicRepository.playlists;
     final moodGenres = MockMusicRepository.moodGenres;
@@ -37,12 +62,13 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: AppTheme.primaryGradient,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: Image.asset(
+                              'assets/bitify_logo.png',
+                              width: 18,
+                              height: 18,
+                              fit: BoxFit.cover,
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -92,6 +118,62 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Real-time Update Available Banner
+                  if (_updateInfo != null && _updateInfo!.hasUpdate)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: GestureDetector(
+                        onTap: () => showBitifyUpdateDialog(context, _updateInfo!),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primary.withOpacity(0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.system_update_rounded, color: Colors.white, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Bitify ${_updateInfo!.latestVersion} Available!',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13),
+                                    ),
+                                    const Text(
+                                      'Tap to download & install latest update',
+                                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'UPDATE',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   // Quick Actions Row
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

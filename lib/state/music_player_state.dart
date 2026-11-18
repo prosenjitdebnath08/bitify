@@ -142,13 +142,15 @@ class MusicPlayerState extends ChangeNotifier {
     } else if (!_queue.any((s) => s.id == song.id)) {
       _queue.insert(0, song);
     }
+    // Always reset playback position to 0 for a new track
     _positionSeconds = 0;
     _isPlaying = true;
     notifyListeners();
 
     try {
+      await _audioPlayer.stop();
       if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
-        await _audioPlayer.stop();
+        await _audioPlayer.seek(Duration.zero);
         await _audioPlayer.play(UrlSource(song.audioUrl!));
       }
     } catch (e) {
