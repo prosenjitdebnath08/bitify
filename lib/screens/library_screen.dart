@@ -6,7 +6,6 @@ import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/song_tile.dart';
-import 'playlist_detail_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -161,12 +160,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             final p = playlists[i];
             return GestureDetector(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PlaylistDetailScreen(playlist: p, state: widget.state),
-                  ),
-                );
+                if (p.songs.isNotEmpty) {
+                  widget.state.playSong(p.songs.first, newQueue: p.songs);
+                }
               },
               child: GlassCard(
                 padding: const EdgeInsets.all(10),

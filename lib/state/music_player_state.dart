@@ -167,7 +167,14 @@ class MusicPlayerState extends ChangeNotifier {
       if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
         await _audioPlayer.play(UrlSource(song.audioUrl!));
         // Apply native DSP Equalizer & Audio Effects to the active playback session
-        Future.delayed(const Duration(milliseconds: 350), () {
+        Future.delayed(const Duration(milliseconds: 250), () {
+          AudioDspService.attachToPlayerAndApply(
+            bandGains: _bandGains,
+            bassBoost: _bassBoost,
+            virtualizer: _virtualizer,
+          );
+        });
+        Future.delayed(const Duration(milliseconds: 650), () {
           AudioDspService.attachToPlayerAndApply(
             bandGains: _bandGains,
             bassBoost: _bassBoost,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/mock_music_repository.dart';
+import '../models/music_models.dart';
 import '../services/download_service.dart';
 import '../services/profile_service.dart';
 import '../services/update_service.dart';
@@ -7,8 +8,6 @@ import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/update_dialog.dart';
-import 'equalizer_screen.dart';
-import 'playlist_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -21,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   UpdateInfo? _updateInfo;
+  String _selectedCategory = 'All';
 
   @override
   void initState() {
@@ -54,99 +54,136 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
         slivers: [
-          // Clean & simple App Bar
+          // Spotify-style Header: Greeting & Profile Avatar
           SliverAppBar(
             floating: true,
-            pinned: true,
-            backgroundColor: AppTheme.background.withOpacity(0.95),
+            pinned: false,
+            backgroundColor: AppTheme.background,
             elevation: 0,
-            toolbarHeight: 64,
+            toolbarHeight: 68,
             title: AnimatedBuilder(
               animation: ProfileService(),
               builder: (context, _) {
                 final profile = ProfileService();
                 return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        'assets/bitify_logo.png',
-                        width: 28,
-                        height: 28,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
+                    Row(
                       children: [
-                        Text(
-                          '${_getGreeting()}, ${profile.name}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.asset(
+                            'assets/bitify_logo.png',
+                            width: 30,
+                            height: 30,
+                            fit: BoxFit.cover,
                           ),
                         ),
-                        const Text(
-                          'Bitify Music',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.textMuted,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${_getGreeting()}, ${profile.name}',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const Text(
+                              'What do you want to play?',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
+                    ),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 );
               },
             ),
-            actions: [
-              // One-Tap Equalizer & DSP Access
-              IconButton(
-                icon: const Icon(Icons.tune_rounded, color: AppTheme.secondary, size: 22),
-                tooltip: 'Equalizer & DSP',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EqualizerScreen(state: state),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 4),
-            ],
           ),
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 150),
+              padding: const EdgeInsets.only(top: 4, bottom: 150),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // App Update Banner (shown only when a new release is live)
+                  // Update Banner (Only shown if a real GitHub release is available)
                   if (_updateInfo != null && _updateInfo!.hasUpdate)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: GestureDetector(
                         onTap: () => showBitifyUpdateDialog(context, _updateInfo!),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
-                            borderRadius: BorderRadius.circular(14),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primary.withOpacity(0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.system_update_rounded, color: Colors.white, size: 20),
-                              const SizedBox(width: 10),
+                              const Icon(Icons.system_update_rounded, color: Colors.white, size: 22),
+                              const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  'Bitify ${_updateInfo!.latestVersion} Available! Tap to update',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white, fontSize: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Bitify ${_updateInfo!.latestVersion} Available!',
+                                      style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13),
+                                    ),
+                                    const Text(
+                                      'Tap to download & install latest update',
+                                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  'UPDATE',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
                                 ),
                               ),
                             ],
@@ -155,150 +192,81 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
-                  // Quick Access Cards (Liked Songs & Offline Vault)
+                  // Spotify-style Filter Chips: All, Music, Lossless, Downloads
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _buildQuickPlayCard(
-                            title: 'Liked Songs',
-                            subtitle: '${songs.where((s) => state.isSongLiked(s.id)).length} tracks',
-                            icon: Icons.favorite_rounded,
-                            gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)]),
-                            onTap: () {
-                              final liked = songs.where((s) => state.isSongLiked(s.id)).toList();
-                              if (liked.isNotEmpty) state.playSong(liked.first, newQueue: liked);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildQuickPlayCard(
-                            title: 'Offline Vault',
-                            subtitle: '${DownloadService().downloadedSongs.length} downloaded',
-                            icon: Icons.offline_pin_rounded,
-                            gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)]),
-                            onTap: () {
-                              final downloaded = DownloadService().downloadedSongs;
-                              if (downloaded.isNotEmpty) {
-                                state.playSong(downloaded.first, newQueue: downloaded);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('No offline tracks yet. Tap ⋮ on any song to download.')),
-                                );
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip('All'),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Music'),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Lossless 24-bit'),
+                          const SizedBox(width: 8),
+                          _buildFilterChip('Downloaded Vault'),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
 
-                  // SECTION: Featured Playlists (Prominently displayed)
-                  _buildSectionHeader('Playlists', subtitle: 'Curated playlists & soundscapes'),
-                  const SizedBox(height: 12),
-
-                  // 2-Column Playlist Grid
+                  // Iconic Spotify 6-Card Quick Access Grid (2 columns x 3 rows)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                    child: _buildSpotifyQuickGrid(state, songs),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Jump Back In / Playlists Horizontal Carousel
+                  _buildSectionHeader('Jump Back In', subtitle: 'Your favorite albums and aggregated mixes'),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 190,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
                       itemCount: playlists.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.78,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
+                      separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (context, i) {
                         final p = playlists[i];
                         return GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => PlaylistDetailScreen(playlist: p, state: state),
-                              ),
-                            );
+                            if (p.songs.isNotEmpty) {
+                              state.playSong(p.songs.first, newQueue: p.songs);
+                            }
                           },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.white.withOpacity(0.08)),
-                            ),
+                          child: SizedBox(
+                            width: 136,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: Stack(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
-                                        child: Image.network(
-                                          p.coverUrl,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(color: Colors.white12),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        right: 8,
-                                        bottom: 8,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            if (p.songs.isNotEmpty) {
-                                              state.playSong(p.songs.first, newQueue: p.songs);
-                                            }
-                                          },
-                                          child: Container(
-                                            width: 38,
-                                            height: 38,
-                                            decoration: const BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              gradient: AppTheme.primaryGradient,
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black45,
-                                                  blurRadius: 8,
-                                                  offset: Offset(0, 3),
-                                                ),
-                                              ],
-                                            ),
-                                            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    p.coverUrl,
+                                    width: 136,
+                                    height: 136,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.all(10),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        p.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        '${p.songs.length} Tracks',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppTheme.textMuted,
-                                        ),
-                                      ),
-                                    ],
+                                const SizedBox(height: 8),
+                                Text(
+                                  p.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '${p.songs.length} Tracks',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppTheme.textMuted,
                                   ),
                                 ),
                               ],
@@ -310,10 +278,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // SECTION: Today's Hits & Trending
-                  _buildSectionHeader('Today\'s Top Tracks', subtitle: '320kbps Lossless streaming'),
+                  // Section: Today's Top Hits (Trending Songs List)
+                  _buildSectionHeader(
+                    'Today\'s Top Hits',
+                    subtitle: 'Full 320kbps Lossless streaming direct from CDN',
+                  ),
                   const SizedBox(height: 8),
-
                   ListView.builder(
                     padding: EdgeInsets.zero,
                     shrinkWrap: true,
@@ -341,84 +311,221 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickPlayCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Gradient gradient,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildFilterChip(String label) {
+    final isSelected = _selectedCategory == label;
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
+      onTap: () {
+        setState(() {
+          _selectedCategory = label;
+        });
+        if (label == 'Downloaded Vault') {
+          final downloaded = DownloadService().downloadedSongs;
+          if (downloaded.isNotEmpty) {
+            widget.state.playSong(downloaded.first, newQueue: downloaded);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Playing ${downloaded.length} downloaded tracks offline'),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No downloads yet. Tap ⋮ on any song to download in 256kbps.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          color: isSelected ? AppTheme.primary : Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppTheme.primaryLight : Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: gradient,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
-                  ),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : Colors.white70,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, {String? subtitle}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
+  /// The Spotify-style 2-column x 3-row compact grid
+  Widget _buildSpotifyQuickGrid(MusicPlayerState state, List<Song> songs) {
+    // Collect items for 6 quick slots
+    final items = <_QuickCardItem>[
+      _QuickCardItem(
+        title: 'Liked Songs',
+        icon: Icons.favorite_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)]),
+        onTap: () {
+          final liked = songs.where((s) => state.isSongLiked(s.id)).toList();
+          if (liked.isNotEmpty) state.playSong(liked.first, newQueue: liked);
+        },
+      ),
+      _QuickCardItem(
+        title: 'Downloads Vault',
+        icon: Icons.offline_pin_rounded,
+        gradient: const LinearGradient(colors: [Color(0xFF06B6D4), Color(0xFF3B82F6)]),
+        onTap: () {
+          final downloaded = DownloadService().downloadedSongs;
+          if (downloaded.isNotEmpty) {
+            state.playSong(downloaded.first, newQueue: downloaded);
+          }
+        },
+      ),
+    ];
+
+    // Add up to 4 real songs
+    for (int i = 0; i < 4 && i < songs.length; i++) {
+      final s = songs[i];
+      items.add(
+        _QuickCardItem(
+          title: s.title,
+          imageUrl: s.coverUrl,
+          onTap: () => state.playSong(s, newQueue: songs),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: items.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 3.0,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
+      itemBuilder: (context, i) {
+        final item = items[i];
+        return GestureDetector(
+          onTap: item.onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(6),
+                    bottomLeft: Radius.circular(6),
+                  ),
+                  child: item.imageUrl != null
+                      ? Image.network(
+                          item.imageUrl!,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 56,
+                            height: 56,
+                            color: Colors.white12,
+                            child: const Icon(Icons.music_note, color: Colors.white54),
+                          ),
+                        )
+                      : Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(gradient: item.gradient),
+                          child: Icon(item.icon, color: Colors.white, size: 24),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.textMuted,
+        );
+      },
+    );
+  }
+
+  Widget _buildSectionHeader(String title, {String? subtitle, VoidCallback? onSeeAll}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (onSeeAll != null)
+            TextButton(
+              onPressed: onSeeAll,
+              child: const Text(
+                'See all',
+                style: TextStyle(
+                  color: AppTheme.secondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ],
         ],
       ),
     );
   }
+}
+
+class _QuickCardItem {
+  final String title;
+  final String? imageUrl;
+  final IconData? icon;
+  final Gradient? gradient;
+  final VoidCallback onTap;
+
+  _QuickCardItem({
+    required this.title,
+    this.imageUrl,
+    this.icon,
+    this.gradient,
+    required this.onTap,
+  });
 }
