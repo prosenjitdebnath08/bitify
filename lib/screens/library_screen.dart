@@ -23,10 +23,17 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    // Listen to DownloadService so Downloads tab always reflects current state
+    DownloadService().addListener(_onDownloadChanged);
+  }
+
+  void _onDownloadChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    DownloadService().removeListener(_onDownloadChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -226,147 +233,131 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildDownloadsTab(List<Song> allSongs) {
-    return AnimatedBuilder(
-      animation: DownloadService(),
-      builder: (context, _) {
-        final ds = DownloadService();
-        final downloading = ds.downloading;
-        final downloaded = ds.downloaded;
-        final total = downloaded.length + downloading.length;
-        // Build queue of fully downloaded songs for playback
-        final downloadedSongs = downloaded.map((e) => e.song).toList();
+    final ds = DownloadService();
+    final downloading = ds.downloading;
+    final downloaded = ds.downloaded;
+    final total = downloaded.length + downloading.length;
+    final downloadedSongs = downloaded.map((e) => e.song).toList();
 
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
-          children: [
-            // Storage / info card
-            GlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+      children: [
+        // Storage / info card
+        GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Offline Audio Vault',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontSize: 15),
-                      ),
-                      Text(
-                        '$total Track${total == 1 ? '' : 's'}',
-                        style: const TextStyle(
-                            color: AppTheme.secondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ],
+                  const Text(
+                    'Offline Audio Vault',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        fontSize: 15),
                   ),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: total == 0 ? 0 : downloaded.length / total.clamp(1, 999),
-                    backgroundColor: Colors.white12,
-                    valueColor:
-                        const AlwaysStoppedAnimation(AppTheme.secondary),
-                    minHeight: 5,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  const SizedBox(height: 8),
                   Text(
-                    total == 0
-                        ? 'No downloads yet — tap ⋮ on any song to download'
-                        : '${downloaded.length} Track${downloaded.length == 1 ? '' : 's'} stored in 256kbps High Quality format',
+                    '$total Track${total == 1 ? '' : 's'}',
                     style: const TextStyle(
-                        color: AppTheme.textMuted, fontSize: 11),
+                        color: AppTheme.secondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(
+                value: total == 0 ? 0 : downloaded.length / total.clamp(1, 999),
+                backgroundColor: Colors.white12,
+                valueColor: const AlwaysStoppedAnimation(AppTheme.secondary),
+                minHeight: 5,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                total == 0
+                    ? 'No downloads yet — tap ⋮ on any song to download'
+                    : '${downloaded.length} Track${downloaded.length == 1 ? '' : 's'} stored in 256kbps High Quality format',
+                style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Active downloads
+        if (downloading.isNotEmpty) ...[
+          const Text(
+            'Downloading',
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.secondary),
+          ),
+          const SizedBox(height: 8),
+          ...downloading.map((e) {
+            final isCurrent = e.song.id == widget.state.currentSong?.id;
+            return SongTile(
+              song: e.song,
+              isCurrent: isCurrent,
+              isPlaying: widget.state.isPlaying && isCurrent,
+              isLiked: widget.state.isSongLiked(e.song.id),
+              onTap: () => widget.state.playSong(e.song),
+              onLikeTap: () => widget.state.toggleLike(e.song.id),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+
+        // Completed downloads
+        if (downloaded.isNotEmpty) ...[
+          const Text(
+            'Downloaded Tracks',
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          ...downloaded.map((e) {
+            final isCurrent = e.song.id == widget.state.currentSong?.id;
+            return SongTile(
+              song: e.song,
+              isCurrent: isCurrent,
+              isPlaying: widget.state.isPlaying && isCurrent,
+              isLiked: widget.state.isSongLiked(e.song.id),
+              showDeleteOption: true,
+              onTap: () => widget.state.playSong(e.song, newQueue: downloadedSongs),
+              onLikeTap: () => widget.state.toggleLike(e.song.id),
+            );
+          }),
+        ],
+
+        // Empty state
+        if (total == 0)
+          const Padding(
+            padding: EdgeInsets.only(top: 48),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.download_for_offline_outlined,
+                      size: 64, color: Colors.white12),
+                  SizedBox(height: 16),
+                  Text(
+                    'No downloaded songs',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tap ⋮ on any song and choose\n"Download (256kbps)" to save it offline.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Active downloads section
-            if (downloading.isNotEmpty) ...[
-              const Text(
-                'Downloading',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.secondary),
-              ),
-              const SizedBox(height: 8),
-              ...downloading.map((e) {
-                final isCurrent =
-                    e.song.id == widget.state.currentSong?.id;
-                return SongTile(
-                  song: e.song,
-                  isCurrent: isCurrent,
-                  isPlaying: widget.state.isPlaying && isCurrent,
-                  isLiked: widget.state.isSongLiked(e.song.id),
-                  onTap: () => widget.state.playSong(e.song),
-                  onLikeTap: () => widget.state.toggleLike(e.song.id),
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-
-            // Completed downloads section
-            if (downloaded.isNotEmpty) ...[
-              const Text(
-                'Downloaded Tracks',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white),
-              ),
-              const SizedBox(height: 8),
-              ...downloaded.map((e) {
-                final isCurrent =
-                    e.song.id == widget.state.currentSong?.id;
-                return SongTile(
-                  song: e.song,
-                  isCurrent: isCurrent,
-                  isPlaying: widget.state.isPlaying && isCurrent,
-                  isLiked: widget.state.isSongLiked(e.song.id),
-                  showDeleteOption: true,
-                  onTap: () =>
-                      widget.state.playSong(e.song, newQueue: downloadedSongs),
-                  onLikeTap: () => widget.state.toggleLike(e.song.id),
-                );
-              }),
-            ],
-
-            // Empty state
-            if (total == 0)
-              const Padding(
-                padding: EdgeInsets.only(top: 48),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.download_for_offline_outlined,
-                          size: 64, color: Colors.white12),
-                      SizedBox(height: 16),
-                      Text(
-                        'No downloaded songs',
-                        style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Tap ⋮ on any song and choose\n"Download (256kbps)" to save it offline.',
-                        textAlign: TextAlign.center,
-                        style:
-                            TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 
