@@ -125,56 +125,58 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ],
                       ),
 
-                      const Spacer(),
-
-                      // Center Artwork or Synced Lyrics (Swipe horizontally for Next/Previous song)
-                      GestureDetector(
-                        onHorizontalDragEnd: (details) {
-                          if (details.primaryVelocity == null) return;
-                          if (details.primaryVelocity! < -250) {
-                            widget.state.next();
-                          } else if (details.primaryVelocity! > 250) {
-                            widget.state.previous();
-                          }
-                        },
-                        behavior: HitTestBehavior.opaque,
-                        child: _showLyrics
-                            ? _buildLyricsView(song, currentSeconds)
-                            : Center(
-                                child: Container(
-                                  width: 290,
-                                  height: 290,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(28),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppTheme.primary.withOpacity(0.35),
-                                        blurRadius: 36,
-                                        offset: const Offset(0, 16),
-                                      ),
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.5),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 10),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(28),
-                                    child: Image.network(
-                                      song.coverUrl,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: AppTheme.surfaceElevated,
-                                        child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
-                                      ),
-                                    ),
+                      Expanded(
+                        child: GestureDetector(
+                          onHorizontalDragEnd: (details) {
+                            if (details.primaryVelocity == null) return;
+                            if (details.primaryVelocity! < -200) {
+                              widget.state.next();
+                            } else if (details.primaryVelocity! > 200) {
+                              widget.state.previous();
+                            }
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: _showLyrics
+                              ? _buildLyricsView(song, currentSeconds)
+                              : Center(
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final size = (constraints.maxHeight * 0.90).clamp(180.0, 310.0);
+                                      return Container(
+                                        width: size,
+                                        height: size,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(24),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: AppTheme.primary.withOpacity(0.35),
+                                              blurRadius: 32,
+                                              offset: const Offset(0, 12),
+                                            ),
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.6),
+                                              blurRadius: 24,
+                                              offset: const Offset(0, 8),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(24),
+                                          child: Image.network(
+                                            song.coverUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              color: AppTheme.surfaceElevated,
+                                              child: const Icon(Icons.music_note, size: 80, color: Colors.white38),
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
-                              ),
+                        ),
                       ),
-
-                      const Spacer(),
 
                       // Source & Quality Badges
                       Row(

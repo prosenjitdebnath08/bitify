@@ -45,9 +45,12 @@ class GlassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Padding(
-            padding: padding ?? const EdgeInsets.all(16),
-            child: child,
+          child: Material(
+            color: Colors.transparent,
+            child: Padding(
+              padding: padding ?? const EdgeInsets.all(16),
+              child: child,
+            ),
           ),
         ),
       ),

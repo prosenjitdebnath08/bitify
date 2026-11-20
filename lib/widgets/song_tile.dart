@@ -34,7 +34,10 @@ class SongTile extends StatelessWidget {
             ? Border.all(color: AppTheme.primary.withOpacity(0.3), width: 1)
             : null,
       ),
-      child: ListTile(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: Stack(
@@ -187,6 +190,7 @@ class SongTile extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -14,9 +14,10 @@ class MiniPlayerBar extends StatelessWidget {
     final song = state.currentSong;
     if (song == null) return const SizedBox.shrink();
 
-    final progress = song.durationSeconds > 0
-        ? (state.positionSeconds / song.durationSeconds).clamp(0.0, 1.0)
-        : 0.0;
+    final duration = state.durationSeconds > 0
+        ? state.durationSeconds
+        : (song.durationSeconds > 0 ? song.durationSeconds : 180);
+    final progress = (state.positionSeconds / duration).clamp(0.0, 1.0);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

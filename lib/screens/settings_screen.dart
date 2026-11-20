@@ -30,7 +30,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
             children: [
               // User Profile Banner
               GlassCard(

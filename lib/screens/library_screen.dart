@@ -97,7 +97,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   Widget _buildPlaylistsTab(List<Playlist> playlists) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
       children: [
         // Create playlist card
         GestureDetector(
@@ -206,7 +206,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 8, bottom: 100),
+      padding: const EdgeInsets.only(top: 8, bottom: 150),
       itemCount: likedSongs.length,
       itemBuilder: (context, i) {
         final song = likedSongs[i];
@@ -288,7 +288,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
 
   Widget _buildHistoryTab(List<Song> songs) {
     return ListView(
-      padding: const EdgeInsets.only(top: 8, bottom: 100),
+      padding: const EdgeInsets.only(top: 8, bottom: 150),
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

@@ -237,7 +237,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 100),
+      padding: const EdgeInsets.only(bottom: 150),
       itemCount: songs.length,
       itemBuilder: (context, i) {
         final song = songs[i];

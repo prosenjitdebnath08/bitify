@@ -38,6 +38,7 @@ dependencies:
   audioplayers: ^6.8.1
   http: ^1.6.0
   url_launcher: ^6.3.3
+  dart_des: ^1.0.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

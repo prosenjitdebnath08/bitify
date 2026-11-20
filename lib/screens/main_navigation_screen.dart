@@ -49,42 +49,46 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Persistent Mini Player (if a track is selected)
-                    if (widget.state.currentSong != null)
-                      MiniPlayerBar(state: widget.state),
+                child: SafeArea(
+                  top: false,
+                  bottom: true,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Persistent Mini Player (if a track is selected)
+                      if (widget.state.currentSong != null)
+                        MiniPlayerBar(state: widget.state),
 
-                    // Frosted Glass Bottom Nav
-                    ClipRRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                        child: Container(
-                          height: 70,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0C0E1A).withOpacity(0.85),
-                            border: Border(
-                              top: BorderSide(
-                                color: Colors.white.withOpacity(0.08),
-                                width: 1.0,
+                      // Frosted Glass Bottom Nav
+                      ClipRRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                          child: Container(
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0C0E1A).withOpacity(0.92),
+                              border: Border(
+                                top: BorderSide(
+                                  color: Colors.white.withOpacity(0.08),
+                                  width: 1.0,
+                                ),
                               ),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _buildNavItem(0, Icons.home_rounded, 'Home'),
-                              _buildNavItem(1, Icons.explore_rounded, 'Explore'),
-                              _buildNavItem(2, Icons.search_rounded, 'Search'),
-                              _buildNavItem(3, Icons.library_music_rounded, 'Library'),
-                              _buildNavItem(4, Icons.settings_rounded, 'Settings'),
-                            ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildNavItem(0, Icons.home_rounded, 'Home'),
+                                _buildNavItem(1, Icons.explore_rounded, 'Explore'),
+                                _buildNavItem(2, Icons.search_rounded, 'Search'),
+                                _buildNavItem(3, Icons.library_music_rounded, 'Library'),
+                                _buildNavItem(4, Icons.settings_rounded, 'Settings'),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

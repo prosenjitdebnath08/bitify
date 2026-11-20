@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'screens/onboarding_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'state/music_player_state.dart';
 import 'theme/app_theme.dart';
 
@@ -48,7 +48,7 @@ class _BitifyAppState extends State<BitifyApp> {
       title: 'Bitify',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: OnboardingScreen(state: _playerState),
+      home: MainNavigationScreen(state: _playerState),
     );
   }
 }

@@ -1,55 +1,101 @@
 import 'dart:convert';
+import 'package:dart_des/dart_des.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/music_models.dart';
 
 class MusicApiService {
-  static const String _audiusApi = 'https://discoveryprovider.audius.co/v1';
+  static const String _jioSaavnBase = 'https://www.jiosaavn.com/api.php';
+  static final List<int> _desKey = utf8.encode('38346591');
 
-  /// Search online music catalog for FULL songs playing from 0:00 to the end
-  static Future<List<Song>> searchOnline(String query, {int limit = 25}) async {
+  /// Decrypt JioSaavn encrypted_media_url into direct 320kbps/256kbps audio URL
+  static String? decryptMediaUrl(String? encrypted) {
+    if (encrypted == null || encrypted.trim().isEmpty) return null;
+    try {
+      final des = DES(key: _desKey, mode: DESMode.ECB, paddingType: DESPaddingType.PKCS7);
+      final decryptedBytes = des.decrypt(base64.decode(encrypted.trim()));
+      final rawUrl = utf8.decode(decryptedBytes).trim();
+      if (rawUrl.isEmpty || !rawUrl.startsWith('http')) return null;
+
+      // Upgrade to 320kbps / 256kbps high quality audio stream
+      return rawUrl.replaceAll('_96.mp4', '_320.mp4').replaceAll('_160.mp4', '_320.mp4');
+    } catch (e) {
+      debugPrint('Error decrypting JioSaavn media URL: $e');
+      return null;
+    }
+  }
+
+  /// Clean HTML entities common in JioSaavn responses
+  static String _cleanText(String text) {
+    return text
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&copy;', '©')
+        .replaceAll('&#38;', '&')
+        .trim();
+  }
+
+  /// Upgrade image thumbnail to 500x500 high resolution
+  static String _upgradeImage(String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80';
+    }
+    return url.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
+  }
+
+  /// Universal Search across full catalog (Global, Pop, Hip-Hop, Bollywood, Indie, EDM)
+  static Future<List<Song>> searchOnline(String query, {int limit = 30}) async {
     if (query.trim().isEmpty) return [];
 
     final List<Song> results = [];
     final Set<String> seenIds = {};
 
-    // 1. Search Audius for full-length tracks starting from 0:00
+    // 1. Search JioSaavn direct high-fidelity CDN
     try {
-      final audiusUri = Uri.parse(
-        '$_audiusApi/tracks/search?query=${Uri.encodeComponent(query)}&limit=$limit&app_name=BITIFY',
+      final uri = Uri.parse(
+        '$_jioSaavnBase?__call=search.getResults&q=${Uri.encodeComponent(query)}&_format=json&_marker=0&api_version=4&ctx=android&n=$limit&p=1',
       );
-      final res = await http.get(audiusUri).timeout(const Duration(seconds: 8));
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Bitify/1.0',
+      }).timeout(const Duration(seconds: 8));
 
       if (res.statusCode == 200) {
-        final jsonBody = json.decode(res.body) as Map<String, dynamic>;
-        final data = jsonBody['data'] as List<dynamic>? ?? [];
+        final data = json.decode(res.body) as Map<String, dynamic>;
+        final items = data['results'] as List<dynamic>? ?? [];
 
-        for (final item in data) {
+        for (final item in items) {
           final id = item['id']?.toString() ?? '';
           if (id.isEmpty || seenIds.contains(id)) continue;
+
+          final moreInfo = item['more_info'] as Map<String, dynamic>? ?? {};
+          final encUrl = moreInfo['encrypted_media_url'] as String? ?? '';
+          final directAudioUrl = decryptMediaUrl(encUrl);
+
+          if (directAudioUrl == null || directAudioUrl.isEmpty) continue;
           seenIds.add(id);
 
-          final title = item['title'] as String? ?? 'Unknown Title';
-          final user = item['user'] as Map<String, dynamic>? ?? {};
-          final artist = user['name'] as String? ?? 'Unknown Artist';
-          final duration = item['duration'] as int? ?? 180;
+          final rawTitle = item['title'] as String? ?? 'Unknown Title';
+          final title = _cleanText(rawTitle);
 
-          // Artwork
-          final artwork = item['artwork'] as Map<String, dynamic>? ?? {};
-          final coverUrl = (artwork['480x480'] ??
-                  artwork['150x150'] ??
-                  artwork['1000x1000'] ??
-                  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80')
-              as String;
+          final primaryArtists = moreInfo['primary_artists'] as String? ?? '';
+          final singers = moreInfo['singers'] as String? ?? '';
+          final subtitle = item['subtitle'] as String? ?? 'Unknown Artist';
+          final artist = _cleanText(primaryArtists.isNotEmpty ? primaryArtists : (singers.isNotEmpty ? singers : subtitle));
 
-          // Direct full MP3 stream URL from Audius starting from 0:00
-          final streamUrl = '$_audiusApi/tracks/$id/stream?app_name=BITIFY';
+          final album = _cleanText(moreInfo['album'] as String? ?? title);
+          final durationStr = moreInfo['duration']?.toString() ?? '180';
+          final duration = int.tryParse(durationStr) ?? 180;
+          final coverUrl = _upgradeImage(item['image'] as String?);
 
-          // Assign platform badge
+          // Assign realistic platform source badge
           MusicSource source;
-          if (title.hashCode % 3 == 0) {
+          final hash = (title + artist).hashCode.abs();
+          if (hash % 3 == 0) {
             source = MusicSource.spotify;
-          } else if (title.hashCode % 3 == 1) {
+          } else if (hash % 3 == 1) {
             source = MusicSource.youtube;
           } else {
             source = MusicSource.jiosaavn;
@@ -57,26 +103,26 @@ class MusicApiService {
 
           results.add(
             Song(
-              id: 'aud_$id',
+              id: 'js_$id',
               title: title,
               artist: artist,
-              album: item['genre'] as String? ?? 'Bitify Hits',
+              album: album,
               durationSeconds: duration > 0 ? duration : 180,
               coverUrl: coverUrl,
-              audioUrl: streamUrl,
+              audioUrl: directAudioUrl,
               source: source,
               isLossless: true,
-              isDolbyAtmos: (id.hashCode % 2 == 0),
+              isDolbyAtmos: (hash % 2 == 0),
               lyrics: _generateLyricsPreview(title, artist),
             ),
           );
         }
       }
     } catch (e) {
-      debugPrint('Audius search error: $e');
+      debugPrint('JioSaavn search error: $e');
     }
 
-    // 2. If Audius had few results, search iTunes for additional tracks
+    // 2. Fallback to iTunes if needed
     if (results.length < 5) {
       try {
         final itunesUri = Uri.parse(
@@ -107,7 +153,6 @@ class MusicApiService {
                 title: title,
                 artist: artist,
                 album: album,
-                // For preview clips, set duration accurately to 30s so the seekbar slides 100% accurately!
                 durationSeconds: 30,
                 coverUrl: coverUrl.isNotEmpty
                     ? coverUrl
@@ -122,72 +167,30 @@ class MusicApiService {
           }
         }
       } catch (e) {
-        debugPrint('iTunes fallback search error: $e');
+        debugPrint('iTunes search fallback error: $e');
       }
     }
 
     return results;
   }
 
-  /// Fetch initial trending tracks across pop, hip-hop, electronic, and global hits
+  /// Fetch initial trending / top global hits
   static Future<List<Song>> fetchTrendingSongs() async {
     final List<Song> trending = [];
-    final Set<String> seenIds = {};
+    final queries = ['top hits', 'global hits', 'trending songs', 'chartbusters'];
 
-    try {
-      final uri = Uri.parse('$_audiusApi/tracks/trending?limit=30&app_name=BITIFY');
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200) {
-        final jsonBody = json.decode(res.body) as Map<String, dynamic>;
-        final data = jsonBody['data'] as List<dynamic>? ?? [];
-
-        for (final item in data) {
-          final id = item['id']?.toString() ?? '';
-          if (id.isEmpty || seenIds.contains(id)) continue;
-          seenIds.add(id);
-
-          final title = item['title'] as String? ?? 'Trending Track';
-          final user = item['user'] as Map<String, dynamic>? ?? {};
-          final artist = user['name'] as String? ?? 'Featured Artist';
-          final duration = item['duration'] as int? ?? 210;
-
-          final artwork = item['artwork'] as Map<String, dynamic>? ?? {};
-          final coverUrl = (artwork['480x480'] ??
-                  artwork['150x150'] ??
-                  'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80')
-              as String;
-
-          final streamUrl = '$_audiusApi/tracks/$id/stream?app_name=BITIFY';
-
-          MusicSource source;
-          if (id.hashCode % 3 == 0) {
-            source = MusicSource.spotify;
-          } else if (id.hashCode % 3 == 1) {
-            source = MusicSource.youtube;
-          } else {
-            source = MusicSource.jiosaavn;
+    for (final q in queries) {
+      try {
+        final songs = await searchOnline(q, limit: 12);
+        for (final s in songs) {
+          if (!trending.any((item) => item.id == s.id || item.title.toLowerCase() == s.title.toLowerCase())) {
+            trending.add(s);
           }
-
-          trending.add(
-            Song(
-              id: 'aud_$id',
-              title: title,
-              artist: artist,
-              album: item['genre'] as String? ?? 'Global Trending',
-              durationSeconds: duration > 0 ? duration : 210,
-              coverUrl: coverUrl,
-              audioUrl: streamUrl,
-              source: source,
-              isLossless: true,
-              isDolbyAtmos: (id.hashCode % 2 == 0),
-              lyrics: _generateLyricsPreview(title, artist),
-            ),
-          );
         }
+        if (trending.length >= 25) break;
+      } catch (e) {
+        debugPrint('Error fetching trending batch: $e');
       }
-    } catch (e) {
-      debugPrint('Error fetching trending tracks: $e');
     }
 
     return trending;
@@ -197,9 +200,9 @@ class MusicApiService {
     return [
       LyricLine(second: 2, text: "♪ $title ♪"),
       LyricLine(second: 6, text: "Artist: $artist"),
-      const LyricLine(second: 12, text: "Live Lossless Audio Engine"),
-      const LyricLine(second: 18, text: "Streaming on Bitify in 256kbps"),
-      const LyricLine(second: 26, text: "Enjoy the rhythm from the start ♪"),
+      const LyricLine(second: 12, text: "Bitify 256kbps Master Audio"),
+      const LyricLine(second: 18, text: "Lossless Studio Fidelity Engine"),
+      const LyricLine(second: 26, text: "Feel every frequency ♪"),
     ];
   }
 }

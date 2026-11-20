@@ -35,7 +35,7 @@ class ExploreScreen extends StatelessWidget {
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 100),
+              padding: const EdgeInsets.only(bottom: 150),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

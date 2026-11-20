@@ -45,76 +45,74 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
         slivers: [
-          // App Bar with Greeting
+          // App Bar with Clean Brand Greeting
           SliverAppBar(
             floating: true,
-            backgroundColor: AppTheme.background.withOpacity(0.8),
+            pinned: true,
+            backgroundColor: AppTheme.background.withOpacity(0.95),
             elevation: 0,
-            expandedHeight: 80,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: Image.asset(
-                              'assets/bitify_logo.png',
-                              width: 18,
-                              height: 18,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'BITIFY',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 2.0,
-                              color: AppTheme.primaryLight,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Text(
-                        'Good evening 🎵',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primaryLight.withOpacity(0.4), width: 1.5),
-                      image: const DecorationImage(
-                        image: NetworkImage(
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
-                        ),
+            toolbarHeight: 64,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.asset(
+                        'assets/bitify_logo.png',
+                        width: 28,
+                        height: 28,
                         fit: BoxFit.cover,
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'BITIFY',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2.0,
+                            color: AppTheme.primaryLight,
+                          ),
+                        ),
+                        Text(
+                          'Good evening 🎵',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.primaryLight.withOpacity(0.4), width: 1.5),
+                    image: const DecorationImage(
+                      image: NetworkImage(
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
+                      ),
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
 
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 100),
+              padding: const EdgeInsets.only(top: 8, bottom: 150),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

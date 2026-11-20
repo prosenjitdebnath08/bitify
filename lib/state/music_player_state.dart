@@ -163,11 +163,12 @@ class MusicPlayerState extends ChangeNotifier {
     try {
       await _audioPlayer.stop();
       if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
-        await _audioPlayer.seek(Duration.zero);
         await _audioPlayer.play(UrlSource(song.audioUrl!));
       }
     } catch (e) {
       debugPrint('Error playing audio: $e');
+      _isPlaying = false;
+      notifyListeners();
     }
   }
 
@@ -182,15 +183,14 @@ class MusicPlayerState extends ChangeNotifier {
         await _audioPlayer.pause();
         _isPlaying = false;
       } else {
-        if (_currentSong?.audioUrl != null) {
+        if (_currentSong?.audioUrl != null && _currentSong!.audioUrl!.isNotEmpty) {
           if (_positionSeconds > 0) {
             await _audioPlayer.resume();
           } else {
-            await _audioPlayer.seek(Duration.zero);
             await _audioPlayer.play(UrlSource(_currentSong!.audioUrl!));
           }
+          _isPlaying = true;
         }
-        _isPlaying = true;
       }
       notifyListeners();
     } catch (e) {
