@@ -101,7 +101,8 @@ class MainActivity : FlutterActivity() {
         try {
             // Retrieve MediaPlayer from Audioplayers plugin via reflection
             val pluginClass = Class.forName("xyz.luan.audioplayers.AudioplayersPlugin")
-            val plugin = flutterEngine.plugins.get(pluginClass) ?: return 0
+            val getMethod = flutterEngine.plugins.javaClass.getMethod("get", Class::class.java)
+            val plugin = getMethod.invoke(flutterEngine.plugins, pluginClass) ?: return 0
             val playersField = pluginClass.getDeclaredField("players")
             playersField.isAccessible = true
             val players = playersField.get(plugin) as? Map<*, *> ?: return 0
