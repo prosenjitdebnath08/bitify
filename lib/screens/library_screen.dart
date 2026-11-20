@@ -233,15 +233,18 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   }
 
   Widget _buildDownloadsTab(List<Song> allSongs) {
-    final ds = DownloadService();
-    final downloading = ds.downloading;
-    final downloaded = ds.downloaded;
-    final total = downloaded.length + downloading.length;
-    final downloadedSongs = downloaded.map((e) => e.song).toList();
+    return AnimatedBuilder(
+      animation: DownloadService(),
+      builder: (context, _) {
+        final ds = DownloadService();
+        final downloading = ds.downloading;
+        final downloaded = ds.downloaded;
+        final total = downloaded.length + downloading.length;
+        final downloadedSongs = downloaded.map((e) => e.song).toList();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
-      children: [
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
+          children: [
         // Storage / info card
         GlassCard(
           child: Column(
@@ -381,6 +384,8 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
           ),
       ],
+    );
+      },
     );
   }
 

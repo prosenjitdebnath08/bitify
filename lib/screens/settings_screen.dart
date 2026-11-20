@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
+import '../services/profile_service.dart';
 import '../services/update_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
@@ -32,51 +33,98 @@ class SettingsScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
             children: [
-              // User Profile Banner
-              GlassCard(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppTheme.primaryLight, width: 2),
-                        image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&q=80',
-                          ),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              // User Profile Banner (Editable)
+              AnimatedBuilder(
+                animation: ProfileService(),
+                builder: (context, _) {
+                  final profile = ProfileService();
+                  return GestureDetector(
+                    onTap: () => _showEditProfileDialog(context, profile),
+                    child: GlassCard(
+                      child: Row(
                         children: [
-                          Text(
-                            'Alex Carter',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF8B5CF6), Color(0xFF06B6D4)],
+                              ),
+                              border: Border.all(color: AppTheme.primaryLight, width: 2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                profile.name.isNotEmpty ? profile.name[0].toUpperCase() : 'U',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
                           ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Bitify Ultra • Lossless Subscriber',
-                            style: TextStyle(fontSize: 12, color: AppTheme.secondary, fontWeight: FontWeight.w600),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        profile.name,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.edit_rounded,
+                                      color: AppTheme.primaryLight,
+                                      size: 14,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  profile.tier,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.secondary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              'VIP',
+                              style: TextStyle(
+                                color: AppTheme.primaryLight,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text('PRO', style: TextStyle(color: AppTheme.primaryLight, fontWeight: FontWeight.w800, fontSize: 11)),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
               const SizedBox(height: 24),
 
@@ -355,6 +403,104 @@ class SettingsScreen extends StatelessWidget {
         ),
         onPressed: onToggle,
         child: Text(isConnected ? 'Disconnect' : 'Connect', style: const TextStyle(fontSize: 11)),
+      ),
+    );
+  }
+
+  void _showEditProfileDialog(BuildContext context, ProfileService profile) {
+    final nameController = TextEditingController(text: profile.name);
+    final tierController = TextEditingController(text: profile.tier);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.edit_rounded, color: AppTheme.primaryLight, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Edit Subscriber Profile',
+              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Display Name', style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.black26,
+                hintText: 'Enter your name...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.primary),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Subscriber Status / Bio', style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: tierController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.black26,
+                hintText: 'e.g. Bitify Ultra • Premium Subscriber',
+                hintStyle: const TextStyle(color: Colors.white38),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.secondary),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              profile.updateProfile(
+                name: nameController.text,
+                tier: tierController.text,
+              );
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Profile updated successfully!'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

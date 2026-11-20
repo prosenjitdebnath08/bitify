@@ -178,7 +178,7 @@ class SongTile extends StatelessWidget {
                       ),
 
                       // If shown in downloads tab, show direct Delete button
-                      if (showDeleteOption || downloaded)
+                      if (showDeleteOption)
                         IconButton(
                           icon: const Icon(Icons.delete_outline_rounded,
                               color: Colors.redAccent, size: 21),

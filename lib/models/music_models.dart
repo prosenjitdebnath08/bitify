@@ -73,33 +73,39 @@ class Song {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  Song copyWith({
-    String? id,
-    String? title,
-    String? artist,
-    String? album,
-    int? durationSeconds,
-    String? coverUrl,
-    String? audioUrl,
-    MusicSource? source,
-    bool? isLossless,
-    bool? isDolbyAtmos,
-    bool? isLiked,
-    List<LyricLine>? lyrics,
-  }) {
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'durationSeconds': durationSeconds,
+      'coverUrl': coverUrl,
+      'audioUrl': audioUrl,
+      'source': source.name,
+      'isLossless': isLossless,
+      'isDolbyAtmos': isDolbyAtmos,
+      'isLiked': isLiked,
+    };
+  }
+
+  factory Song.fromJson(Map<String, dynamic> json) {
+    MusicSource src = MusicSource.spotify;
+    try {
+      src = MusicSource.values.byName(json['source'] ?? 'spotify');
+    } catch (_) {}
     return Song(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      artist: artist ?? this.artist,
-      album: album ?? this.album,
-      durationSeconds: durationSeconds ?? this.durationSeconds,
-      coverUrl: coverUrl ?? this.coverUrl,
-      audioUrl: audioUrl ?? this.audioUrl,
-      source: source ?? this.source,
-      isLossless: isLossless ?? this.isLossless,
-      isDolbyAtmos: isDolbyAtmos ?? this.isDolbyAtmos,
-      isLiked: isLiked ?? this.isLiked,
-      lyrics: lyrics ?? this.lyrics,
+      id: json['id'] ?? '',
+      title: json['title'] ?? 'Unknown',
+      artist: json['artist'] ?? 'Unknown Artist',
+      album: json['album'] ?? 'Unknown Album',
+      durationSeconds: json['durationSeconds'] ?? 200,
+      coverUrl: json['coverUrl'] ?? '',
+      audioUrl: json['audioUrl'],
+      source: src,
+      isLossless: json['isLossless'] ?? true,
+      isDolbyAtmos: json['isDolbyAtmos'] ?? false,
+      isLiked: json['isLiked'] ?? false,
     );
   }
 }
