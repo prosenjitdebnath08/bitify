@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
+import '../services/audio_dsp_service.dart';
 import '../services/music_api_service.dart';
 
 enum BitifyRepeatMode { off, all, one }
@@ -61,6 +62,7 @@ class MusicPlayerState extends ChangeNotifier {
     }
     _initAudioListeners();
     _loadOnlineTrendingCatalog();
+    AudioDspService.init();
   }
 
   void _initAudioListeners() {
@@ -164,6 +166,14 @@ class MusicPlayerState extends ChangeNotifier {
       await _audioPlayer.stop();
       if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
         await _audioPlayer.play(UrlSource(song.audioUrl!));
+        // Apply native DSP Equalizer & Audio Effects to the active playback session
+        Future.delayed(const Duration(milliseconds: 350), () {
+          AudioDspService.attachToPlayerAndApply(
+            bandGains: _bandGains,
+            bassBoost: _bassBoost,
+            virtualizer: _virtualizer,
+          );
+        });
       }
     } catch (e) {
       debugPrint('Error playing audio: $e');
@@ -279,17 +289,20 @@ class MusicPlayerState extends ChangeNotifier {
     if (index >= 0 && index < _bandGains.length) {
       _bandGains[index] = gain.clamp(-12.0, 12.0);
       _currentPreset = 'Custom';
+      AudioDspService.setBandGain(index, _bandGains[index]);
       notifyListeners();
     }
   }
 
   void setBassBoost(double value) {
     _bassBoost = value.clamp(0.0, 1.0);
+    AudioDspService.setBassBoost(_bassBoost);
     notifyListeners();
   }
 
   void setVirtualizer(double value) {
     _virtualizer = value.clamp(0.0, 1.0);
+    AudioDspService.setVirtualizer(_virtualizer);
     notifyListeners();
   }
 
@@ -324,6 +337,11 @@ class MusicPlayerState extends ChangeNotifier {
         _virtualizer = 0.40;
         break;
     }
+    AudioDspService.attachToPlayerAndApply(
+      bandGains: _bandGains,
+      bassBoost: _bassBoost,
+      virtualizer: _virtualizer,
+    );
     notifyListeners();
   }
 
