@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../data/mock_music_repository.dart';
 import '../models/music_models.dart';
 
 enum DownloadStatus { idle, downloading, done }
@@ -16,19 +17,39 @@ class DownloadEntry {
   });
 }
 
-/// Singleton download manager — simulates downloads with a progress bar.
+/// Singleton download manager for Bitify offline vault.
 class DownloadService extends ChangeNotifier {
   static final DownloadService _instance = DownloadService._internal();
   factory DownloadService() => _instance;
-  DownloadService._internal();
 
-  /// songId → entry
+  DownloadService._internal() {
+    _seedInitialDownloads();
+  }
+
+  /// Pre-seed with sample offline songs so the Downloads tab has real content
+  void _seedInitialDownloads() {
+    try {
+      final initial = MockMusicRepository.allSongs.take(2).toList();
+      for (final s in initial) {
+        _entries[s.id] = DownloadEntry(
+          song: s,
+          status: DownloadStatus.done,
+          progress: 1.0,
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// songId -> DownloadEntry
   final Map<String, DownloadEntry> _entries = {};
 
   List<DownloadEntry> get all => _entries.values.toList();
 
   List<DownloadEntry> get downloaded =>
       _entries.values.where((e) => e.status == DownloadStatus.done).toList();
+
+  List<Song> get downloadedSongs =>
+      downloaded.map((e) => e.song).toList();
 
   List<DownloadEntry> get downloading =>
       _entries.values.where((e) => e.status == DownloadStatus.downloading).toList();
@@ -41,17 +62,17 @@ class DownloadService extends ChangeNotifier {
 
   double progress(String songId) => _entries[songId]?.progress ?? 0.0;
 
-  /// Start a simulated download for [song].
-  void startDownload(Song song) {
-    if (_entries.containsKey(song.id)) return; // already downloading or done
+  /// Start simulated 256kbps download for [song].
+  void startDownload(Song song, {VoidCallback? onComplete}) {
+    if (isDownloaded(song.id) || isDownloading(song.id)) return;
 
-    final entry = DownloadEntry(song: song);
+    final entry = DownloadEntry(song: song, status: DownloadStatus.downloading, progress: 0.05);
     _entries[song.id] = entry;
     notifyListeners();
 
-    // Simulate download: tick every 300 ms, finish in ~6 s (20 ticks × 5%)
-    const tickMs = 300;
-    const totalTicks = 20;
+    // Fast & smooth 2.5s simulation (15 ticks x 160ms)
+    const tickMs = 160;
+    const totalTicks = 15;
     int ticks = 0;
 
     Timer.periodic(const Duration(milliseconds: tickMs), (timer) {
@@ -61,14 +82,21 @@ class DownloadService extends ChangeNotifier {
         entry.status = DownloadStatus.done;
         entry.progress = 1.0;
         timer.cancel();
+        onComplete?.call();
       }
       notifyListeners();
     });
   }
 
-  /// Remove / delete a downloaded (or in-progress) song.
+  /// Remove a song from downloaded offline vault.
   void deleteSong(String songId) {
     _entries.remove(songId);
+    notifyListeners();
+  }
+
+  /// Clear all offline downloads.
+  void clearAll() {
+    _entries.clear();
     notifyListeners();
   }
 }

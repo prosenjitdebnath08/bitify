@@ -257,12 +257,35 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                         color: Colors.white,
                         fontSize: 15),
                   ),
-                  Text(
-                    '$total Track${total == 1 ? '' : 's'}',
-                    style: const TextStyle(
-                        color: AppTheme.secondary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600),
+                  Row(
+                    children: [
+                      Text(
+                        '$total Track${total == 1 ? '' : 's'}',
+                        style: const TextStyle(
+                            color: AppTheme.secondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      if (downloaded.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => _confirmClearAllDownloads(context),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 16),
+                                SizedBox(width: 2),
+                                Text(
+                                  'Clear',
+                                  style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -441,6 +464,44 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
               }
             },
             child: const Text('Create', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearAllDownloads(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Clear All Downloads', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Are you sure you want to delete all downloaded offline songs?',
+          style: TextStyle(color: AppTheme.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              DownloadService().clearAll();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('All offline downloads cleared'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

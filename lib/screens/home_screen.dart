@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/mock_music_repository.dart';
+import '../services/download_service.dart';
 import '../services/update_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
@@ -201,7 +202,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.offline_pin_rounded,
                           color: AppTheme.accentAmber,
                           label: 'Downloads',
-                          onTap: () {},
+                          onTap: () {
+                            final downloaded = DownloadService().downloadedSongs;
+                            if (downloaded.isNotEmpty) {
+                              state.playSong(downloaded.first, newQueue: downloaded);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Playing ${downloaded.length} tracks from Offline Vault'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('No downloads yet. Tap ⋮ on any song to download in 256kbps.'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                         ),
                       ],
                     ),

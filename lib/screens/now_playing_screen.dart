@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
+import '../services/download_service.dart';
 import '../state/music_player_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/source_badge.dart';
@@ -223,17 +224,88 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: Icon(
-                              widget.state.isSongLiked(song.id)
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: widget.state.isSongLiked(song.id)
-                                  ? AppTheme.accentPink
-                                  : Colors.white54,
-                              size: 28,
-                            ),
-                            onPressed: () => widget.state.toggleLike(song.id),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  widget.state.isSongLiked(song.id)
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: widget.state.isSongLiked(song.id)
+                                      ? AppTheme.accentPink
+                                      : Colors.white54,
+                                  size: 28,
+                                ),
+                                onPressed: () => widget.state.toggleLike(song.id),
+                              ),
+                              AnimatedBuilder(
+                                animation: DownloadService(),
+                                builder: (context, _) {
+                                  final ds = DownloadService();
+                                  final isDownloaded = ds.isDownloaded(song.id);
+                                  final isDownloading = ds.isDownloading(song.id);
+                                  final prog = ds.progress(song.id);
+
+                                  if (isDownloading) {
+                                    return SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            value: prog,
+                                            strokeWidth: 2.5,
+                                            valueColor: const AlwaysStoppedAnimation(AppTheme.secondary),
+                                          ),
+                                          Text(
+                                            '${(prog * 100).toInt()}%',
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              color: AppTheme.secondary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  if (isDownloaded) {
+                                    return IconButton(
+                                      icon: const Icon(Icons.download_done_rounded, color: AppTheme.secondary, size: 28),
+                                      tooltip: 'Downloaded in 256kbps (Tap to delete)',
+                                      onPressed: () => _confirmDeleteDownload(context, song),
+                                    );
+                                  }
+
+                                  return IconButton(
+                                    icon: const Icon(Icons.arrow_circle_down_rounded, color: Colors.white54, size: 28),
+                                    tooltip: 'Download (256kbps)',
+                                    onPressed: () {
+                                      ds.startDownload(
+                                        song,
+                                        onComplete: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('✓ "${song.title}" downloaded! Saved to Offline Vault.'),
+                                              backgroundColor: const Color(0xFF1E2139),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Downloading "${song.title}" in 256kbps...'),
+                                          duration: const Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -502,14 +574,63 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               title: Text('View Artist: ${song.artist}'),
               onTap: () => Navigator.pop(context),
             ),
-            ListTile(
-              leading: const Icon(Icons.download_rounded, color: Colors.white70),
-              title: const Text('Download'),
-              subtitle: const Text('256kbps High Quality Audio', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Downloading "${song.title}" in 256kbps...')),
+            AnimatedBuilder(
+              animation: DownloadService(),
+              builder: (context, _) {
+                final ds = DownloadService();
+                final isDownloaded = ds.isDownloaded(song.id);
+                final isDownloading = ds.isDownloading(song.id);
+
+                if (isDownloaded) {
+                  return ListTile(
+                    leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                    title: const Text('Delete Download', style: TextStyle(color: Colors.redAccent)),
+                    subtitle: const Text('Remove from offline downloads', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _confirmDeleteDownload(context, song);
+                    },
+                  );
+                }
+
+                if (isDownloading) {
+                  final prog = ds.progress(song.id);
+                  return ListTile(
+                    leading: const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(AppTheme.secondary),
+                      ),
+                    ),
+                    title: Text('Downloading… ${(prog * 100).toInt()}%'),
+                    subtitle: const Text('Saving in 256kbps high quality', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    onTap: null,
+                  );
+                }
+
+                return ListTile(
+                  leading: const Icon(Icons.download_rounded, color: Colors.white70),
+                  title: const Text('Download'),
+                  subtitle: const Text('256kbps High Quality Audio', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    ds.startDownload(
+                      song,
+                      onComplete: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✓ "${song.title}" downloaded! Available in Offline Vault.'),
+                            backgroundColor: const Color(0xFF1E2139),
+                          ),
+                        );
+                      },
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Downloading "${song.title}" in 256kbps...')),
+                    );
+                  },
                 );
               },
             ),
@@ -520,6 +641,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmDeleteDownload(BuildContext context, Song song) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Download', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Remove "${song.title}" from your offline downloads vault?',
+          style: const TextStyle(color: AppTheme.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              DownloadService().deleteSong(song.id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('"${song.title}" removed from downloads'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

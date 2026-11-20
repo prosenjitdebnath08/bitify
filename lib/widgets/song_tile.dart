@@ -11,9 +11,9 @@ class SongTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLikeTap;
   final bool isLiked;
-  /// When true, shows a "Delete" option instead of "Download".
+  /// When true, displays an explicit delete icon button in the trailing row.
   final bool showDeleteOption;
-  /// Called when the user confirms deletion (only used in Downloads tab).
+  /// Called when the user confirms deletion.
   final VoidCallback? onDelete;
 
   const SongTile({
@@ -126,8 +126,29 @@ class SongTile extends StatelessWidget {
                         SourceBadge(source: song.source),
                         if (downloaded) ...[
                           const SizedBox(width: 6),
-                          const Icon(Icons.download_done_rounded,
-                              size: 14, color: AppTheme.secondary),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppTheme.secondary.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.download_done_rounded,
+                                    size: 11, color: AppTheme.secondary),
+                                SizedBox(width: 2),
+                                Text(
+                                  '256k',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -155,110 +176,129 @@ class SongTile extends StatelessWidget {
                           fontSize: 12,
                         ),
                       ),
-                      PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_vert_rounded,
-                            color: Colors.white38, size: 20),
-                        color: AppTheme.surfaceElevated,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        onSelected: (val) {
-                          switch (val) {
-                            case 'Download':
-                              if (!downloaded && !downloading) {
-                                DownloadService().startDownload(song);
+
+                      // If shown in downloads tab, show direct Delete button
+                      if (showDeleteOption || downloaded)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              color: Colors.redAccent, size: 21),
+                          tooltip: 'Delete Download',
+                          onPressed: () => _confirmDelete(context),
+                        )
+                      else ...[
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert_rounded,
+                              color: Colors.white38, size: 20),
+                          color: AppTheme.surfaceElevated,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          onSelected: (val) {
+                            switch (val) {
+                              case 'Download':
+                                if (!downloaded && !downloading) {
+                                  DownloadService().startDownload(
+                                    song,
+                                    onComplete: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                              '✓ "${song.title}" downloaded! Available in Offline Vault.'),
+                                          backgroundColor: const Color(0xFF1E2139),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Downloading "${song.title}" in 256kbps…'),
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                                break;
+                              case 'Delete':
+                                _confirmDelete(context);
+                                break;
+                              default:
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(
-                                        'Downloading "${song.title}" in 256kbps…'),
-                                    duration: const Duration(seconds: 2),
+                                    content: Text('$val: "${song.title}"'),
+                                    duration: const Duration(seconds: 1),
                                   ),
                                 );
-                              }
-                              break;
-                            case 'Delete':
-                              _confirmDelete(context);
-                              break;
-                            default:
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('$val: "${song.title}"'),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'Add to Playlist',
-                            child: Row(children: [
-                              Icon(Icons.playlist_add_rounded,
-                                  size: 18, color: Colors.white70),
-                              SizedBox(width: 10),
-                              Text('Add to Playlist'),
-                            ]),
-                          ),
-                          const PopupMenuItem(
-                            value: 'Play Next',
-                            child: Row(children: [
-                              Icon(Icons.queue_music_rounded,
-                                  size: 18, color: Colors.white70),
-                              SizedBox(width: 10),
-                              Text('Play Next'),
-                            ]),
-                          ),
-                          // Show Download or Delete based on download state
-                          if (downloaded || showDeleteOption)
+                            }
+                          },
+                          itemBuilder: (context) => [
                             const PopupMenuItem(
-                              value: 'Delete',
+                              value: 'Add to Playlist',
                               child: Row(children: [
-                                Icon(Icons.delete_rounded,
-                                    size: 18, color: Colors.redAccent),
+                                Icon(Icons.playlist_add_rounded,
+                                    size: 18, color: Colors.white70),
                                 SizedBox(width: 10),
-                                Text('Delete Download',
-                                    style:
-                                        TextStyle(color: Colors.redAccent)),
-                              ]),
-                            )
-                          else
-                            PopupMenuItem(
-                              value: 'Download',
-                              child: Row(children: [
-                                Icon(
-                                  downloading
-                                      ? Icons.downloading_rounded
-                                      : Icons.download_rounded,
-                                  size: 18,
-                                  color: downloading
-                                      ? AppTheme.secondary
-                                      : Colors.white70,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  downloading
-                                      ? 'Downloading…'
-                                      : 'Download (256kbps)',
-                                ),
+                                Text('Add to Playlist'),
                               ]),
                             ),
-                          const PopupMenuItem(
-                            value: 'Share Song',
-                            child: Row(children: [
-                              Icon(Icons.share_rounded,
-                                  size: 18, color: Colors.white70),
-                              SizedBox(width: 10),
-                              Text('Share Bitify Link'),
-                            ]),
-                          ),
-                        ],
-                      ),
+                            const PopupMenuItem(
+                              value: 'Play Next',
+                              child: Row(children: [
+                                Icon(Icons.queue_music_rounded,
+                                    size: 18, color: Colors.white70),
+                                SizedBox(width: 10),
+                                Text('Play Next'),
+                              ]),
+                            ),
+                            if (downloaded)
+                              const PopupMenuItem(
+                                value: 'Delete',
+                                child: Row(children: [
+                                  Icon(Icons.delete_outline_rounded,
+                                      size: 18, color: Colors.redAccent),
+                                  SizedBox(width: 10),
+                                  Text('Delete Download',
+                                      style: TextStyle(color: Colors.redAccent)),
+                                ]),
+                              )
+                            else
+                              PopupMenuItem(
+                                value: 'Download',
+                                child: Row(children: [
+                                  Icon(
+                                    downloading
+                                        ? Icons.downloading_rounded
+                                        : Icons.download_rounded,
+                                    size: 18,
+                                    color: downloading
+                                        ? AppTheme.secondary
+                                        : Colors.white70,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    downloading
+                                        ? 'Downloading…'
+                                        : 'Download (256kbps)',
+                                  ),
+                                ]),
+                              ),
+                            const PopupMenuItem(
+                              value: 'Share Song',
+                              child: Row(children: [
+                                Icon(Icons.share_rounded,
+                                    size: 18, color: Colors.white70),
+                                SizedBox(width: 10),
+                                Text('Share Bitify Link'),
+                              ]),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 // Progress bar shown while downloading
                 if (downloading)
                   Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -266,17 +306,29 @@ class SongTile extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: prog,
-                            minHeight: 3,
+                            minHeight: 4,
                             backgroundColor: Colors.white12,
                             valueColor: const AlwaysStoppedAnimation(
                                 AppTheme.secondary),
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          'Downloading… ${(prog * 100).toInt()}%',
-                          style: const TextStyle(
-                              color: AppTheme.secondary, fontSize: 11),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Downloading in 256kbps… ${(prog * 100).toInt()}%',
+                              style: const TextStyle(
+                                  color: AppTheme.secondary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '${((prog * 6.8)).toStringAsFixed(1)} MB / 6.8 MB',
+                              style: const TextStyle(
+                                  color: AppTheme.textMuted, fontSize: 10),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -299,7 +351,7 @@ class SongTile extends StatelessWidget {
         title: const Text('Delete Download',
             style: TextStyle(color: Colors.white)),
         content: Text(
-          'Remove "${song.title}" from your downloads?',
+          'Remove "${song.title}" from your offline downloads vault?',
           style: const TextStyle(color: AppTheme.textMuted),
         ),
         actions: [
