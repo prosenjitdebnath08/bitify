@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
-import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 
 class EqualizerScreen extends StatelessWidget {
@@ -11,31 +11,45 @@ class EqualizerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final presets = [
-      'Bitify Dynamic',
-      'Bass Boost',
-      'EDM / Dance',
-      'Acoustic / Vocal',
-      'Rock',
       'Flat',
+      'Bass Boost',
+      'Vocal Boost',
+      'Electronic',
+      'Rock',
+      'Hip Hop',
+      'Acoustic',
+      'Treble Boost',
+      'Classical',
     ];
 
     return AnimatedBuilder(
-      animation: state,
+      animation: Listenable.merge([state, ThemeColorService()]),
       builder: (context, _) {
+        final p = ThemeColorService().palette;
+
         return Scaffold(
-          backgroundColor: AppTheme.background,
+          backgroundColor: p.background,
           appBar: AppBar(
-            title: const Text('Equalizer & Audio DSP'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: Text(
+              'Equalizer & Audio DSP',
+              style: TextStyle(
+                color: p.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+              ),
+            ),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+              icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: p.textPrimary),
               onPressed: () => Navigator.of(context).pop(),
             ),
             actions: [
               TextButton(
                 onPressed: () => state.applyPreset('Flat'),
-                child: const Text(
+                child: Text(
                   'Reset',
-                  style: TextStyle(color: AppTheme.secondary, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: p.primary, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -46,13 +60,13 @@ class EqualizerScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Presets horizontal scroll
-                const Text(
+                Text(
                   'PRESETS',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
-                    color: AppTheme.textMuted,
+                    color: p.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -63,27 +77,35 @@ class EqualizerScreen extends StatelessWidget {
                     itemCount: presets.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
-                      final p = presets[i];
-                      final isSelected = state.currentPreset == p;
+                      final presetName = presets[i];
+                      final isSelected = state.currentPreset == presetName;
 
                       return GestureDetector(
-                        onTap: () => state.applyPreset(p),
+                        onTap: () => state.applyPreset(presetName),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: isSelected ? AppTheme.primaryGradient : null,
-                            color: isSelected ? null : Colors.white.withOpacity(0.06),
+                            color: isSelected ? p.primary : p.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
-                                  ? AppTheme.primaryLight
-                                  : Colors.white.withOpacity(0.1),
+                                  ? p.primary
+                                  : p.textSecondary.withOpacity(0.2),
                             ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: p.glow,
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Text(
-                            p,
+                            presetName,
                             style: TextStyle(
-                              color: isSelected ? Colors.white : AppTheme.textSecondary,
+                              color: isSelected ? Colors.white : p.textPrimary,
                               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                               fontSize: 13,
                             ),
@@ -103,26 +125,26 @@ class EqualizerScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
+                          Text(
                             '10-Band Graphic Equalizer',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: p.textPrimary,
                             ),
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.primary.withOpacity(0.2),
+                              color: p.primary.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               state.currentPreset,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: AppTheme.primaryLight,
+                                color: p.primary,
                               ),
                             ),
                           ),
@@ -147,9 +169,7 @@ class EqualizerScreen extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: gain != 0
-                                        ? AppTheme.secondary
-                                        : AppTheme.textMuted,
+                                    color: gain != 0 ? p.primary : p.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
@@ -164,9 +184,9 @@ class EqualizerScreen extends StatelessWidget {
                                         thumbShape: const RoundSliderThumbShape(
                                           enabledThumbRadius: 6,
                                         ),
-                                        activeTrackColor: AppTheme.primary,
-                                        inactiveTrackColor: Colors.white.withOpacity(0.1),
-                                        thumbColor: Colors.white,
+                                        activeTrackColor: p.primary,
+                                        inactiveTrackColor: p.textSecondary.withOpacity(0.2),
+                                        thumbColor: p.primary,
                                       ),
                                       child: Slider(
                                         value: gain,
@@ -184,10 +204,10 @@ class EqualizerScreen extends StatelessWidget {
                                 // Freq label
                                 Text(
                                   freq,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
-                                    color: AppTheme.textMuted,
+                                    color: p.textSecondary,
                                   ),
                                 ),
                               ],
@@ -201,13 +221,13 @@ class EqualizerScreen extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // Audio Enhancers: Bass Boost & 3D Spatial Virtualizer
-                const Text(
+                Text(
                   'ACOUSTIC ENHANCEMENTS',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
-                    color: AppTheme.textMuted,
+                    color: p.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -221,12 +241,12 @@ class EqualizerScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppTheme.accentPink.withOpacity(0.15),
+                              color: p.accent.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.speaker_rounded,
-                              color: AppTheme.accentPink,
+                              color: p.accent,
                               size: 22,
                             ),
                           ),
@@ -238,18 +258,18 @@ class EqualizerScreen extends StatelessWidget {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Sub-Bass Boost',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                                        color: p.textPrimary,
                                         fontSize: 14,
                                       ),
                                     ),
                                     Text(
                                       '${(state.bassBoost * 100).toInt()}%',
-                                      style: const TextStyle(
-                                        color: AppTheme.accentPink,
+                                      style: TextStyle(
+                                        color: p.accent,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
                                       ),
@@ -258,8 +278,8 @@ class EqualizerScreen extends StatelessWidget {
                                 ),
                                 Slider(
                                   value: state.bassBoost,
-                                  activeColor: AppTheme.accentPink,
-                                  inactiveColor: Colors.white12,
+                                  activeColor: p.accent,
+                                  inactiveColor: p.textSecondary.withOpacity(0.2),
                                   onChanged: state.setBassBoost,
                                 ),
                               ],
@@ -267,7 +287,7 @@ class EqualizerScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Divider(color: Colors.white12, height: 28),
+                      Divider(color: p.textSecondary.withOpacity(0.15), height: 28),
 
                       // 3D Virtualizer
                       Row(
@@ -275,12 +295,12 @@ class EqualizerScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: AppTheme.secondary.withOpacity(0.15),
+                              color: p.primary.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.surround_sound_rounded,
-                              color: AppTheme.secondary,
+                              color: p.primary,
                               size: 22,
                             ),
                           ),
@@ -292,18 +312,18 @@ class EqualizerScreen extends StatelessWidget {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
+                                    Text(
                                       '3D Spatial Virtualizer',
                                       style: TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                                        color: p.textPrimary,
                                         fontSize: 14,
                                       ),
                                     ),
                                     Text(
                                       '${(state.virtualizer * 100).toInt()}%',
-                                      style: const TextStyle(
-                                        color: AppTheme.secondary,
+                                      style: TextStyle(
+                                        color: p.primary,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
                                       ),
@@ -312,8 +332,8 @@ class EqualizerScreen extends StatelessWidget {
                                 ),
                                 Slider(
                                   value: state.virtualizer,
-                                  activeColor: AppTheme.secondary,
-                                  inactiveColor: Colors.white12,
+                                  activeColor: p.primary,
+                                  inactiveColor: p.textSecondary.withOpacity(0.2),
                                   onChanged: state.setVirtualizer,
                                 ),
                               ],

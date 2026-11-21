@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../data/mock_music_repository.dart';
 import '../models/music_models.dart';
 import '../services/download_service.dart';
+import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
-import '../theme/app_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/song_tile.dart';
 
@@ -23,7 +23,6 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    // Listen to DownloadService so Downloads tab always reflects current state
     DownloadService().addListener(_onDownloadChanged);
   }
 
@@ -41,8 +40,9 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: widget.state,
+      animation: Listenable.merge([widget.state, ThemeColorService(), DownloadService()]),
       builder: (context, _) {
+        final p = ThemeColorService().palette;
         final allSongs = MockMusicRepository.allSongs;
         final likedSongs = allSongs.where((s) => widget.state.isSongLiked(s.id)).toList();
         final playlists = MockMusicRepository.playlists;
@@ -50,29 +50,29 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         return Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
-            title: const Text(
+            title: Text(
               'Your Music Vault',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: p.textPrimary,
               ),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.add_circle_outline_rounded, color: AppTheme.primaryLight, size: 26),
+                icon: Icon(Icons.add_circle_outline_rounded, color: p.primary, size: 26),
                 tooltip: 'New Playlist',
-                onPressed: () => _showCreatePlaylistDialog(context),
+                onPressed: () => _showCreatePlaylistDialog(context, p),
               ),
             ],
             bottom: TabBar(
               controller: _tabController,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              indicatorColor: AppTheme.primary,
+              indicatorColor: p.primary,
               indicatorWeight: 3,
-              labelColor: Colors.white,
-              unselectedLabelColor: AppTheme.textMuted,
+              labelColor: p.textPrimary,
+              unselectedLabelColor: p.textSecondary,
               labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               tabs: const [
                 Tab(text: 'Playlists'),
@@ -86,16 +86,16 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             controller: _tabController,
             children: [
               // 1. Playlists Tab
-              _buildPlaylistsTab(playlists),
+              _buildPlaylistsTab(playlists, p),
 
               // 2. Liked Songs Tab
-              _buildLikedSongsTab(likedSongs),
+              _buildLikedSongsTab(likedSongs, p),
 
               // 3. Downloads / Offline Vault Tab
-              _buildDownloadsTab(allSongs),
+              _buildDownloadsTab(allSongs, p),
 
               // 4. History Tab
-              _buildHistoryTab(allSongs),
+              _buildHistoryTab(allSongs, p),
             ],
           ),
         );
@@ -103,39 +103,39 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildPlaylistsTab(List<Playlist> playlists) {
+  Widget _buildPlaylistsTab(List<Playlist> playlists, SongColorPalette p) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
       children: [
         // Create playlist card
         GestureDetector(
-          onTap: () => _showCreatePlaylistDialog(context),
+          onTap: () => _showCreatePlaylistDialog(context, p),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.primary.withOpacity(0.2),
-                  AppTheme.secondary.withOpacity(0.1),
+                  p.primary.withOpacity(0.18),
+                  p.accent.withOpacity(0.10),
                 ],
               ),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppTheme.primary.withOpacity(0.3)),
+              border: Border.all(color: p.primary.withOpacity(0.35)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.playlist_add_circle_rounded, size: 36, color: AppTheme.primaryLight),
-                SizedBox(width: 14),
+                Icon(Icons.playlist_add_circle_rounded, size: 36, color: p.primary),
+                const SizedBox(width: 14),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Create Custom Playlist',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: p.textPrimary),
                     ),
                     Text(
                       'Aggregate tracks from Spotify, YT Music & JioSaavn',
-                      style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                      style: TextStyle(fontSize: 11, color: p.textSecondary),
                     ),
                   ],
                 ),
@@ -157,11 +157,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           ),
           itemCount: playlists.length,
           itemBuilder: (context, i) {
-            final p = playlists[i];
+            final playlist = playlists[i];
             return GestureDetector(
               onTap: () {
-                if (p.songs.isNotEmpty) {
-                  widget.state.playSong(p.songs.first, newQueue: p.songs);
+                if (playlist.songs.isNotEmpty) {
+                  widget.state.playSong(playlist.songs.first, newQueue: playlist.songs);
                 }
               },
               child: GlassCard(
@@ -174,7 +174,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(14),
                         child: Image.network(
-                          p.coverUrl,
+                          playlist.coverUrl,
                           width: double.infinity,
                           fit: BoxFit.cover,
                         ),
@@ -182,15 +182,15 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      p.title,
+                      playlist.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.white),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: p.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${p.songs.length} Tracks • FLAC',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                      '${playlist.songs.length} Tracks • 256kbps Master',
+                      style: TextStyle(fontSize: 11, color: p.textSecondary),
                     ),
                   ],
                 ),
@@ -202,13 +202,13 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildLikedSongsTab(List<Song> likedSongs) {
+  Widget _buildLikedSongsTab(List<Song> likedSongs, SongColorPalette p) {
     if (likedSongs.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'No liked songs yet.\nTap the heart icon on any song to save it here!',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppTheme.textMuted, fontSize: 14),
+          style: TextStyle(color: p.textSecondary, fontSize: 14),
         ),
       );
     }
@@ -232,7 +232,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildDownloadsTab(List<Song> allSongs) {
+  Widget _buildDownloadsTab(List<Song> allSongs, SongColorPalette p) {
     return AnimatedBuilder(
       animation: DownloadService(),
       builder: (context, _) {
@@ -245,159 +245,159 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 150),
           children: [
-        // Storage / info card
-        GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            // Storage / info card
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Offline Audio Vault',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        fontSize: 15),
-                  ),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '$total Track${total == 1 ? '' : 's'}',
-                        style: const TextStyle(
-                            color: AppTheme.secondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600),
+                        'Offline Audio Vault',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: p.textPrimary,
+                            fontSize: 15),
                       ),
-                      if (downloaded.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () => _confirmClearAllDownloads(context),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 16),
-                                SizedBox(width: 2),
-                                Text(
-                                  'Clear',
-                                  style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
+                      Row(
+                        children: [
+                          Text(
+                            '$total Track${total == 1 ? '' : 's'}',
+                            style: TextStyle(
+                                color: p.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700),
                           ),
-                        ),
-                      ],
+                          if (downloaded.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => _confirmClearAllDownloads(context, p),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delete_sweep_rounded, color: Colors.redAccent, size: 16),
+                                    SizedBox(width: 2),
+                                    Text(
+                                      'Clear',
+                                      style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: total == 0 ? 0 : downloaded.length / total.clamp(1, 999),
-                backgroundColor: Colors.white12,
-                valueColor: const AlwaysStoppedAnimation(AppTheme.secondary),
-                minHeight: 5,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                total == 0
-                    ? 'No downloads yet — tap ⋮ on any song to download'
-                    : '${downloaded.length} Track${downloaded.length == 1 ? '' : 's'} stored in 256kbps High Quality format',
-                style: const TextStyle(color: AppTheme.textMuted, fontSize: 11),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Active downloads
-        if (downloading.isNotEmpty) ...[
-          const Text(
-            'Downloading',
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.secondary),
-          ),
-          const SizedBox(height: 8),
-          ...downloading.map((e) {
-            final isCurrent = e.song.id == widget.state.currentSong?.id;
-            return SongTile(
-              song: e.song,
-              isCurrent: isCurrent,
-              isPlaying: widget.state.isPlaying && isCurrent,
-              isLiked: widget.state.isSongLiked(e.song.id),
-              onTap: () => widget.state.playSong(e.song),
-              onLikeTap: () => widget.state.toggleLike(e.song.id),
-            );
-          }),
-          const SizedBox(height: 16),
-        ],
-
-        // Completed downloads
-        if (downloaded.isNotEmpty) ...[
-          const Text(
-            'Downloaded Tracks',
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          ...downloaded.map((e) {
-            final isCurrent = e.song.id == widget.state.currentSong?.id;
-            return SongTile(
-              song: e.song,
-              isCurrent: isCurrent,
-              isPlaying: widget.state.isPlaying && isCurrent,
-              isLiked: widget.state.isSongLiked(e.song.id),
-              showDeleteOption: true,
-              onTap: () => widget.state.playSong(e.song, newQueue: downloadedSongs),
-              onLikeTap: () => widget.state.toggleLike(e.song.id),
-            );
-          }),
-        ],
-
-        // Empty state
-        if (total == 0)
-          const Padding(
-            padding: EdgeInsets.only(top: 48),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(Icons.download_for_offline_outlined,
-                      size: 64, color: Colors.white12),
-                  SizedBox(height: 16),
-                  Text(
-                    'No downloaded songs',
-                    style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(
+                    value: total == 0 ? 0 : downloaded.length / total.clamp(1, 999),
+                    backgroundColor: p.isDark ? Colors.white12 : Colors.black12,
+                    valueColor: AlwaysStoppedAnimation(p.primary),
+                    minHeight: 5,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
-                    'Tap ⋮ on any song and choose\n"Download (256kbps)" to save it offline.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                    total == 0
+                        ? 'No downloads yet — tap download icon on any song'
+                        : '${downloaded.length} Track${downloaded.length == 1 ? '' : 's'} stored in 256kbps Master Audio',
+                    style: TextStyle(color: p.textSecondary, fontSize: 11),
                   ),
                 ],
               ),
             ),
-          ),
-      ],
-    );
+            const SizedBox(height: 16),
+
+            // Active downloads
+            if (downloading.isNotEmpty) ...[
+              Text(
+                'Downloading',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: p.primary),
+              ),
+              const SizedBox(height: 8),
+              ...downloading.map((e) {
+                final isCurrent = e.song.id == widget.state.currentSong?.id;
+                return SongTile(
+                  song: e.song,
+                  isCurrent: isCurrent,
+                  isPlaying: widget.state.isPlaying && isCurrent,
+                  isLiked: widget.state.isSongLiked(e.song.id),
+                  onTap: () => widget.state.playSong(e.song),
+                  onLikeTap: () => widget.state.toggleLike(e.song.id),
+                );
+              }),
+              const SizedBox(height: 16),
+            ],
+
+            // Completed downloads
+            if (downloaded.isNotEmpty) ...[
+              Text(
+                'Downloaded Tracks',
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: p.textPrimary),
+              ),
+              const SizedBox(height: 8),
+              ...downloaded.map((e) {
+                final isCurrent = e.song.id == widget.state.currentSong?.id;
+                return SongTile(
+                  song: e.song,
+                  isCurrent: isCurrent,
+                  isPlaying: widget.state.isPlaying && isCurrent,
+                  isLiked: widget.state.isSongLiked(e.song.id),
+                  showDeleteOption: true,
+                  onTap: () => widget.state.playSong(e.song, newQueue: downloadedSongs),
+                  onLikeTap: () => widget.state.toggleLike(e.song.id),
+                );
+              }),
+            ],
+
+            // Empty state
+            if (total == 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 48),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.download_for_offline_outlined,
+                          size: 64, color: p.textSecondary.withOpacity(0.3)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No downloaded songs',
+                        style: TextStyle(
+                            color: p.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Tap the download icon below the love sign in\nNow Playing to save tracks offline.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: p.textSecondary, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
       },
     );
   }
 
-  Widget _buildHistoryTab(List<Song> songs) {
+  Widget _buildHistoryTab(List<Song> songs, SongColorPalette p) {
     return ListView(
       padding: const EdgeInsets.only(top: 8, bottom: 150),
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
             'Today',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.secondary),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: p.primary),
           ),
         ),
         ...songs.take(3).map((s) {
@@ -411,11 +411,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             onLikeTap: () => widget.state.toggleLike(s.id),
           );
         }),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Text(
             'Yesterday',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textMuted),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: p.textSecondary),
           ),
         ),
         ...songs.skip(3).take(3).map((s) {
@@ -433,31 +433,32 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
     );
   }
 
-  void _showCreatePlaylistDialog(BuildContext context) {
+  void _showCreatePlaylistDialog(BuildContext context, SongColorPalette p) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
+        backgroundColor: p.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('New Playlist'),
+        title: Text('New Playlist', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w700)),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: p.textPrimary),
+          decoration: InputDecoration(
             hintText: 'Enter playlist title...',
-            hintStyle: TextStyle(color: AppTheme.textMuted),
+            hintStyle: TextStyle(color: p.textSecondary),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: p.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
+              backgroundColor: p.primary,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () {
@@ -468,32 +469,33 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 );
               }
             },
-            child: const Text('Create', style: TextStyle(color: Colors.white)),
+            child: const Text('Create', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  void _confirmClearAllDownloads(BuildContext context) {
+  void _confirmClearAllDownloads(BuildContext context, SongColorPalette p) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surfaceElevated,
+        backgroundColor: p.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Clear All Downloads', style: TextStyle(color: Colors.white)),
-        content: const Text(
+        title: Text('Clear All Downloads', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w700)),
+        content: Text(
           'Are you sure you want to delete all downloaded offline songs?',
-          style: TextStyle(color: AppTheme.textMuted),
+          style: TextStyle(color: p.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+            child: Text('Cancel', style: TextStyle(color: p.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () {
@@ -506,7 +508,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                 ),
               );
             },
-            child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+            child: const Text('Clear All', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

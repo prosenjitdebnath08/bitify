@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../services/theme_color_service.dart';
 
 class GlassCard extends StatelessWidget {
   final Widget child;
@@ -23,49 +24,65 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget content = Container(
-      margin: margin,
-      decoration: BoxDecoration(
-        color: color ?? Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(radius),
-        border: border ??
+    return AnimatedBuilder(
+      animation: ThemeColorService(),
+      builder: (context, _) {
+        final p = ThemeColorService().palette;
+        final cardColor = color ?? (p.isDark ? p.surface.withOpacity(0.70) : p.surface.withOpacity(0.88));
+        final cardBorder = border ??
             Border.all(
-              color: Colors.white.withOpacity(0.09),
+              color: p.isDark ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.65),
               width: 1.0,
-            ),
-        boxShadow: [
+            );
+        final cardShadow = [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: p.shadowDark.withOpacity(p.isDark ? 0.65 : 0.40),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Material(
-            color: Colors.transparent,
-            child: Padding(
-              padding: padding ?? const EdgeInsets.all(16),
-              child: child,
+          if (!p.isDark)
+            BoxShadow(
+              color: p.shadowLight,
+              blurRadius: 10,
+              offset: const Offset(-2, -2),
+            ),
+        ];
+
+        Widget content = Container(
+          margin: margin,
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(radius),
+            border: cardBorder,
+            boxShadow: cardShadow,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Material(
+                color: Colors.transparent,
+                child: Padding(
+                  padding: padding ?? const EdgeInsets.all(16),
+                  child: child,
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+
+        if (onTap != null) {
+          return InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(radius),
+            splashColor: p.primary.withOpacity(0.15),
+            highlightColor: Colors.transparent,
+            child: content,
+          );
+        }
+
+        return content;
+      },
     );
-
-    if (onTap != null) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radius),
-        splashColor: Colors.white.withOpacity(0.1),
-        highlightColor: Colors.transparent,
-        child: content,
-      );
-    }
-
-    return content;
   }
 }

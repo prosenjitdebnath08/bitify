@@ -105,6 +105,37 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               Row(
                                 children: [
+                                  // Theme Shuffle Button (Dark / Light / System)
+                                  NeumorphicBox(
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 22,
+                                    onTap: () async {
+                                      await ThemeColorService().cycleThemeMode();
+                                      final mode = ThemeColorService().themeMode;
+                                      final label = mode == ThemeModeOption.dark
+                                          ? 'Dark'
+                                          : (mode == ThemeModeOption.light ? 'Light' : 'System Default');
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Theme set to: $label'),
+                                            duration: const Duration(seconds: 1),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Icon(
+                                      ThemeColorService().themeMode == ThemeModeOption.dark
+                                          ? Icons.dark_mode_rounded
+                                          : (ThemeColorService().themeMode == ThemeModeOption.light
+                                              ? Icons.light_mode_rounded
+                                              : Icons.brightness_auto_rounded),
+                                      size: 20,
+                                      color: p.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   // Equalizer button
                                   NeumorphicBox(
                                     width: 44,
@@ -120,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     },
                                     child: Icon(Icons.tune_rounded, size: 20, color: p.textPrimary),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 8),
                                   // Now Playing Disk Button
                                   NeumorphicBox(
                                     width: 44,

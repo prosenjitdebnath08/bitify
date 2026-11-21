@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
 import '../services/music_api_service.dart';
+import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
-import '../theme/app_theme.dart';
 import '../widgets/song_tile.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -58,111 +58,133 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredSongs = _searchResults.where((song) {
-      if (_selectedSource == null) return true;
-      return song.source == _selectedSource;
-    }).toList();
+    return AnimatedBuilder(
+      animation: ThemeColorService(),
+      builder: (context, _) {
+        final p = ThemeColorService().palette;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text(
-          'Universal Search',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Search input field
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-              ),
-              child: TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: 'Search any song, artist, album in the world...',
-                  hintStyle: const TextStyle(color: AppTheme.textMuted, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primaryLight),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                          onPressed: () {
-                            _searchController.clear();
-                            _onQueryChanged('');
-                          },
-                        )
-                      : null,
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onChanged: _onQueryChanged,
+        final filteredSongs = _searchResults.where((song) {
+          if (_selectedSource == null) return true;
+          return song.source == _selectedSource;
+        }).toList();
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: Text(
+              'Universal Search',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: p.textPrimary,
               ),
             ),
           ),
-
-          // Source filter chips
-          SizedBox(
-            height: 42,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _buildSourceFilterChip(label: 'All Sources', source: null),
-                const SizedBox(width: 8),
-                _buildSourceFilterChip(
-                  label: 'YouTube Music',
-                  source: MusicSource.youtube,
-                  color: const Color(0xFFEF4444),
-                ),
-                const SizedBox(width: 8),
-                _buildSourceFilterChip(
-                  label: 'Spotify',
-                  source: MusicSource.spotify,
-                  color: const Color(0xFF10B981),
-                ),
-                const SizedBox(width: 8),
-                _buildSourceFilterChip(
-                  label: 'JioSaavn',
-                  source: MusicSource.jiosaavn,
-                  color: const Color(0xFF06B6D4),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Loading, Results, or Browse Categories
-          Expanded(
-            child: _isSearching
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(color: AppTheme.primary),
-                        SizedBox(height: 14),
-                        Text(
-                          'Searching across Spotify, YouTube Music & JioSaavn...',
-                          style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                        ),
-                      ],
+          body: Column(
+            children: [
+              // Search input field
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: p.isDark
+                          ? Colors.white.withOpacity(0.12)
+                          : Colors.white.withOpacity(0.65),
+                      width: 1.0,
                     ),
-                  )
-                : _query.isEmpty
-                    ? _buildBrowseCategories()
-                    : _buildSearchResults(filteredSongs),
+                    boxShadow: [
+                      BoxShadow(
+                        color: p.shadowDark.withOpacity(p.isDark ? 0.6 : 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    style: TextStyle(color: p.textPrimary, fontSize: 15),
+                    decoration: InputDecoration(
+                      hintText: 'Search any song, artist, album in the world...',
+                      hintStyle: TextStyle(color: p.textSecondary.withOpacity(0.7), fontSize: 14),
+                      prefixIcon: Icon(Icons.search_rounded, color: p.primary),
+                      suffixIcon: _query.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.close_rounded, color: p.textSecondary),
+                              onPressed: () {
+                                _searchController.clear();
+                                _onQueryChanged('');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onChanged: _onQueryChanged,
+                  ),
+                ),
+              ),
+
+              // Source filter chips
+              SizedBox(
+                height: 42,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _buildSourceFilterChip(label: 'All Sources', source: null, palette: p),
+                    const SizedBox(width: 8),
+                    _buildSourceFilterChip(
+                      label: 'YouTube Music',
+                      source: MusicSource.youtube,
+                      color: const Color(0xFFEF4444),
+                      palette: p,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildSourceFilterChip(
+                      label: 'Spotify',
+                      source: MusicSource.spotify,
+                      color: const Color(0xFF10B981),
+                      palette: p,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildSourceFilterChip(
+                      label: 'JioSaavn',
+                      source: MusicSource.jiosaavn,
+                      color: const Color(0xFF06B6D4),
+                      palette: p,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Loading, Results, or Browse Categories
+              Expanded(
+                child: _isSearching
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(color: p.primary),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Searching across Spotify, YouTube Music & JioSaavn...',
+                              style: TextStyle(color: p.textSecondary, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _query.isEmpty
+                        ? _buildBrowseCategories(p)
+                        : _buildSearchResults(filteredSongs, p),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -170,9 +192,10 @@ class _SearchScreenState extends State<SearchScreen> {
     required String label,
     required MusicSource? source,
     Color? color,
+    required SongColorPalette palette,
   }) {
     final isSelected = _selectedSource == source;
-    final activeColor = color ?? AppTheme.primary;
+    final activeColor = color ?? palette.primary;
 
     return GestureDetector(
       onTap: () {
@@ -183,10 +206,10 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+          color: isSelected ? activeColor.withOpacity(0.2) : palette.surface.withOpacity(0.7),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.1),
+            color: isSelected ? activeColor : palette.textSecondary.withOpacity(0.2),
             width: isSelected ? 1.5 : 1.0,
           ),
         ),
@@ -203,7 +226,7 @@ class _SearchScreenState extends State<SearchScreen> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.white : AppTheme.textSecondary,
+                color: isSelected ? (palette.isDark ? Colors.white : activeColor) : palette.textSecondary,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -214,22 +237,22 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchResults(List<Song> songs) {
+  Widget _buildSearchResults(List<Song> songs, SongColorPalette p) {
     if (songs.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.search_off_rounded, size: 56, color: AppTheme.textMuted),
+            Icon(Icons.search_off_rounded, size: 56, color: p.textSecondary),
             const SizedBox(height: 12),
             Text(
               'No results found for "$_query"',
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(color: p.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Try searching with another keyword or select All Sources',
-              style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+              style: TextStyle(color: p.textSecondary, fontSize: 13),
             ),
           ],
         ),
@@ -255,7 +278,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildBrowseCategories() {
+  Widget _buildBrowseCategories(SongColorPalette p) {
     final categories = [
       {'name': 'Top Global 2026', 'query': 'Top Global Hits 2026', 'color': 0xFF6366F1, 'icon': Icons.public_rounded},
       {'name': 'Bollywood & Desi', 'query': 'Arijit Singh Pritam Hits', 'color': 0xFFF59E0B, 'icon': Icons.music_note_rounded},
@@ -268,12 +291,12 @@ class _SearchScreenState extends State<SearchScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
-        const Text(
+        Text(
           'Quick Search Categories',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
-            color: Colors.white,
+            color: p.textPrimary,
           ),
         ),
         const SizedBox(height: 12),
@@ -300,9 +323,9 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
+                  color: color.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: color.withValues(alpha: 0.35)),
+                  border: Border.all(color: color.withOpacity(0.35)),
                 ),
                 child: Row(
                   children: [
@@ -311,8 +334,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     Expanded(
                       child: Text(
                         cat['name'] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: p.textPrimary,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                         ),

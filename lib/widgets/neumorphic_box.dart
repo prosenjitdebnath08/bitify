@@ -66,8 +66,10 @@ class NeumorphicBox extends StatelessWidget {
               ),
           ],
           border: Border.all(
-            color: Colors.white.withOpacity(0.55),
-            width: 1.2,
+            color: p.isDark
+                ? Colors.white.withOpacity(0.12)
+                : Colors.white.withOpacity(0.60),
+            width: p.isDark ? 1.0 : 1.2,
           ),
         );
 

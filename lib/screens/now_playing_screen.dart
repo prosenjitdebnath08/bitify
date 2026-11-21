@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
+import '../services/download_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/neumorphic_box.dart';
@@ -56,7 +57,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([widget.state, ThemeColorService()]),
+      animation: Listenable.merge([widget.state, ThemeColorService(), DownloadService()]),
       builder: (context, _) {
         final song = widget.state.currentSong;
         if (song == null) {
@@ -143,23 +144,58 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                             ],
                           ),
                         ),
-                        NeumorphicBox(
-                          width: 44,
-                          height: 44,
-                          borderRadius: 22,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => EqualizerScreen(state: widget.state),
+                        Row(
+                          children: [
+                            // Theme Shuffle Button (Dark / Light / System)
+                            NeumorphicBox(
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              onTap: () async {
+                                await ThemeColorService().cycleThemeMode();
+                                final mode = ThemeColorService().themeMode;
+                                final label = mode == ThemeModeOption.dark
+                                    ? 'Dark'
+                                    : (mode == ThemeModeOption.light ? 'Light' : 'System Default');
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Theme set to: $label'),
+                                      duration: const Duration(seconds: 1),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Icon(
+                                ThemeColorService().themeMode == ThemeModeOption.dark
+                                    ? Icons.dark_mode_rounded
+                                    : (ThemeColorService().themeMode == ThemeModeOption.light
+                                        ? Icons.light_mode_rounded
+                                        : Icons.brightness_auto_rounded),
+                                size: 20,
+                                color: p.primary,
                               ),
-                            );
-                          },
-                          child: Icon(
-                            Icons.tune_rounded,
-                            size: 20,
-                            color: p.textPrimary,
-                          ),
+                            ),
+                            const SizedBox(width: 8),
+                            NeumorphicBox(
+                              width: 44,
+                              height: 44,
+                              borderRadius: 22,
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EqualizerScreen(state: widget.state),
+                                  ),
+                                );
+                              },
+                              child: Icon(
+                                Icons.tune_rounded,
+                                size: 20,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -221,8 +257,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
                   // 4. Floating Left Control Capsule Bar (Exact match to reference design)
                   Positioned(
-                    left: 22,
-                    top: size.height * 0.23,
+                    left: 20,
+                    top: size.height * 0.20,
                     child: _buildVerticalControlCapsule(song, p),
                   ),
 
@@ -271,7 +307,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
         ],
         border: Border.all(
-          color: Colors.white.withOpacity(0.7),
+          color: p.isDark ? Colors.white.withOpacity(0.18) : Colors.white.withOpacity(0.7),
           width: 2.5,
         ),
       ),
@@ -344,10 +380,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   Widget _buildVerticalControlCapsule(Song song, SongColorPalette p) {
     final isLiked = widget.state.isSongLiked(song.id);
     final isPlaying = widget.state.isPlaying;
+    final ds = DownloadService();
+    final isDownloaded = ds.isDownloaded(song.id);
+    final isDownloading = ds.isDownloading(song.id);
 
     return NeumorphicBox(
       width: 54,
-      height: 340,
+      height: 395,
       borderRadius: 27,
       hasGlow: true,
       glowColor: p.glow.withOpacity(0.3),
@@ -417,6 +456,48 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             ),
             tooltip: 'Favorite',
             onPressed: () => widget.state.toggleLike(song.id),
+          ),
+
+          // 6. Download Button (Just below the love sign)
+          IconButton(
+            icon: Icon(
+              isDownloaded
+                  ? Icons.download_done_rounded
+                  : (isDownloading
+                      ? Icons.downloading_rounded
+                      : Icons.download_rounded),
+              size: 22,
+              color: isDownloaded
+                  ? const Color(0xFF10B981)
+                  : (isDownloading ? p.primary : p.textSecondary),
+            ),
+            tooltip: isDownloaded ? 'Downloaded' : 'Download Song',
+            onPressed: () {
+              if (isDownloaded) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${song.title} is already saved offline'),
+                    action: SnackBarAction(
+                      label: 'Delete',
+                      textColor: const Color(0xFFEF4444),
+                      onPressed: () => DownloadService().deleteSong(song.id),
+                    ),
+                  ),
+                );
+              } else if (isDownloading) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Downloading in 256kbps Master Audio...')),
+                );
+              } else {
+                DownloadService().startDownload(song);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Downloading ${song.title} (256kbps)...'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
           ),
         ],
       ),
