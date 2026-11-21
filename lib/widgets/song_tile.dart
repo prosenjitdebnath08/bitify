@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
 import '../services/download_service.dart';
+import '../services/theme_color_service.dart';
 import '../theme/app_theme.dart';
 import 'source_badge.dart';
 
@@ -31,8 +32,9 @@ class SongTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: DownloadService(),
+      animation: Listenable.merge([DownloadService(), ThemeColorService()]),
       builder: (context, _) {
+        final p = ThemeColorService().palette;
         final ds = DownloadService();
         final downloading = ds.isDownloading(song.id);
         final downloaded = ds.isDownloaded(song.id);
@@ -42,16 +44,16 @@ class SongTile extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
             color: isCurrent
-                ? AppTheme.primary.withOpacity(0.12)
+                ? p.primary.withOpacity(0.14)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: isCurrent
-                ? Border.all(color: AppTheme.primary.withOpacity(0.3), width: 1)
+                ? Border.all(color: p.primary.withOpacity(0.35), width: 1.2)
                 : null,
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -72,7 +74,7 @@ class SongTile extends StatelessWidget {
                           errorBuilder: (_, __, ___) => Container(
                             width: 50,
                             height: 50,
-                            color: AppTheme.surfaceElevated,
+                            color: Colors.white24,
                             child: const Icon(Icons.music_note,
                                 color: Colors.white54),
                           ),
@@ -86,9 +88,9 @@ class SongTile extends StatelessWidget {
                             color: Colors.black.withOpacity(0.55),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.equalizer_rounded,
-                            color: AppTheme.secondary,
+                            color: p.accent,
                             size: 26,
                           ),
                         ),
@@ -100,11 +102,11 @@ class SongTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: isCurrent
-                          ? AppTheme.primaryLight
-                          : AppTheme.textPrimary,
+                          ? p.primary
+                          : p.textPrimary,
                       fontSize: 15,
                       fontWeight:
-                          isCurrent ? FontWeight.w700 : FontWeight.w600,
+                          isCurrent ? FontWeight.w800 : FontWeight.w600,
                     ),
                   ),
                   subtitle: Padding(
@@ -116,8 +118,8 @@ class SongTile extends StatelessWidget {
                             song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppTheme.textMuted,
+                            style: TextStyle(
+                              color: p.textSecondary,
                               fontSize: 13,
                             ),
                           ),
@@ -129,21 +131,21 @@ class SongTile extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
-                              color: AppTheme.secondary.withOpacity(0.18),
+                              color: p.primary.withOpacity(0.18),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.download_done_rounded,
-                                    size: 11, color: AppTheme.secondary),
-                                SizedBox(width: 2),
+                                    size: 11, color: p.primary),
+                                const SizedBox(width: 2),
                                 Text(
                                   '256k',
                                   style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w700,
-                                    color: AppTheme.secondary,
+                                    color: p.primary,
                                   ),
                                 ),
                               ],
@@ -163,16 +165,16 @@ class SongTile extends StatelessWidget {
                                 ? Icons.favorite_rounded
                                 : Icons.favorite_border_rounded,
                             color: isLiked
-                                ? AppTheme.accentPink
-                                : Colors.white38,
+                                ? const Color(0xFFEF4444)
+                                : p.textSecondary,
                             size: 20,
                           ),
                           onPressed: onLikeTap,
                         ),
                       Text(
                         song.formattedDuration,
-                        style: const TextStyle(
-                          color: AppTheme.textMuted,
+                        style: TextStyle(
+                          color: p.textSecondary,
                           fontSize: 12,
                         ),
                       ),

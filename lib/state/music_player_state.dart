@@ -5,6 +5,7 @@ import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
 import '../services/audio_dsp_service.dart';
 import '../services/music_api_service.dart';
+import '../services/theme_color_service.dart';
 
 enum BitifyRepeatMode { off, all, one }
 
@@ -59,6 +60,7 @@ class MusicPlayerState extends ChangeNotifier {
     if (_queue.isNotEmpty) {
       _currentSong = _queue.first;
       _durationSeconds = _currentSong!.durationSeconds;
+      ThemeColorService().updateForSong(_currentSong);
     }
     _initAudioListeners();
     _loadOnlineTrendingCatalog();
@@ -160,6 +162,7 @@ class MusicPlayerState extends ChangeNotifier {
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
     _isPlaying = true;
+    ThemeColorService().updateForSong(song);
     notifyListeners();
 
     try {

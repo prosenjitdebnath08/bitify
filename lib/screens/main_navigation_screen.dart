@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
-import '../theme/app_theme.dart';
 import '../widgets/mini_player_bar.dart';
 import 'explore_screen.dart';
 import 'home_screen.dart';
@@ -24,8 +24,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: widget.state,
+      animation: Listenable.merge([widget.state, ThemeColorService()]),
       builder: (context, _) {
+        final p = ThemeColorService().palette;
+
         final pages = [
           HomeScreen(state: widget.state),
           ExploreScreen(state: widget.state),
@@ -35,7 +37,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ];
 
         return Scaffold(
-          backgroundColor: AppTheme.background,
+          backgroundColor: p.background,
           body: Stack(
             children: [
               // Screen content
@@ -44,7 +46,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 children: pages,
               ),
 
-              // Bottom floating mini player + frosted navigation bar
+              // Bottom floating mini player + neumorphic navigation bar
               Positioned(
                 left: 0,
                 right: 0,
@@ -59,29 +61,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       if (widget.state.currentSong != null)
                         MiniPlayerBar(state: widget.state),
 
-                      // Frosted Glass Bottom Nav
+                      // Neumorphic Frosted Bottom Nav
                       ClipRRect(
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                           child: Container(
                             height: 64,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0C0E1A).withOpacity(0.92),
+                              color: p.surface.withOpacity(0.92),
                               border: Border(
                                 top: BorderSide(
-                                  color: Colors.white.withOpacity(0.08),
+                                  color: Colors.white.withOpacity(0.45),
                                   width: 1.0,
                                 ),
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: p.shadowDark.withOpacity(0.4),
+                                  offset: const Offset(0, -4),
+                                  blurRadius: 10,
+                                ),
+                              ],
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildNavItem(0, Icons.home_rounded, 'Home'),
-                                _buildNavItem(1, Icons.explore_rounded, 'Explore'),
-                                _buildNavItem(2, Icons.search_rounded, 'Search'),
-                                _buildNavItem(3, Icons.library_music_rounded, 'Library'),
-                                _buildNavItem(4, Icons.settings_rounded, 'Settings'),
+                                _buildNavItem(0, Icons.home_rounded, 'Home', p),
+                                _buildNavItem(1, Icons.explore_rounded, 'Explore', p),
+                                _buildNavItem(2, Icons.search_rounded, 'Search', p),
+                                _buildNavItem(3, Icons.library_music_rounded, 'Library', p),
+                                _buildNavItem(4, Icons.settings_rounded, 'Settings', p),
                               ],
                             ),
                           ),
@@ -98,7 +107,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label) {
+  Widget _buildNavItem(int index, IconData icon, String label, SongColorPalette p) {
     final isSelected = _currentIndex == index;
 
     return GestureDetector(
@@ -112,7 +121,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withOpacity(0.15) : Colors.transparent,
+          color: isSelected ? p.primary.withOpacity(0.18) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -121,15 +130,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             Icon(
               icon,
               size: 22,
-              color: isSelected ? AppTheme.primaryLight : AppTheme.textMuted,
+              color: isSelected ? p.primary : p.textSecondary,
             ),
             const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? Colors.white : AppTheme.textMuted,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                color: isSelected ? p.primary : p.textSecondary,
               ),
             ),
           ],
