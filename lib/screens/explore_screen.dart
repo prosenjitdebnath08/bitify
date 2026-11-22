@@ -63,6 +63,69 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
+  List<Map<String, dynamic>> _extractArtistsFromResults(List<Song> songs) {
+    final Map<String, List<Song>> artistMap = {};
+    for (final s in songs) {
+      final primary = s.artist.split(RegExp(r'[,&]')).first.trim();
+      if (primary.isNotEmpty) {
+        artistMap.putIfAbsent(primary, () => []).add(s);
+      }
+    }
+    return artistMap.entries.map((e) {
+      return {
+        'name': e.key,
+        'image': e.value.first.coverUrl,
+        'songs': e.value,
+      };
+    }).take(6).toList();
+  }
+
+  List<Playlist> _generatePlaylistsFromResults(String query, List<Song> songs) {
+    if (songs.isEmpty) return [];
+    final List<Playlist> list = [];
+
+    // 1. Essentials Playlist
+    list.add(
+      Playlist(
+        id: 'search_pl_essentials',
+        title: '$query Essentials',
+        description: 'Complete collection of $query chartbusters & hits',
+        coverUrl: songs.first.coverUrl,
+        songs: songs,
+      ),
+    );
+
+    // 2. Radio / Flow Playlist
+    if (songs.length > 2) {
+      list.add(
+        Playlist(
+          id: 'search_pl_radio',
+          title: '$query Radio Mix',
+          description: 'Continuous algorithmic flow inspired by $query',
+          coverUrl: songs.length > 1 ? songs[1].coverUrl : songs.first.coverUrl,
+          songs: songs.reversed.toList(),
+        ),
+      );
+    }
+
+    // 3. Artist Collection
+    final artists = _extractArtistsFromResults(songs);
+    if (artists.isNotEmpty && (artists.first['songs'] as List<Song>).length > 1) {
+      final a = artists.first;
+      list.add(
+        Playlist(
+          id: 'search_pl_artist',
+          title: '${a['name']} Hits',
+          description: 'Best songs by ${a['name']} on Spotify & JioSaavn',
+          coverUrl: a['image'] as String,
+          songs: a['songs'] as List<Song>,
+        ),
+      );
+    }
+
+    return list;
+  }
+
   void _onCategoryTapped(String cat) {
     setState(() {
       _selectedCategory = cat;
@@ -210,7 +273,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
               ),
 
-              // Active Search Results View
+              // Active Search Results View (Artists, Playlists, and Single Songs)
               if (_isSearching)
                 SliverToBoxAdapter(
                   child: Padding(
@@ -227,6 +290,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Search summary
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -239,7 +303,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                             ),
                             Text(
-                              '${_searchResults.length} Songs Found',
+                              '${_searchResults.length} Tracks',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -248,7 +312,266 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
+
+                        // 1. MATCHING ARTISTS SECTION
+                        () {
+                          final matchingArtists = _extractArtistsFromResults(_searchResults);
+                          if (matchingArtists.isEmpty) return const SizedBox.shrink();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Artists',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: p.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 110,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: matchingArtists.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 14),
+                                  itemBuilder: (context, idx) {
+                                    final art = matchingArtists[idx];
+                                    final artSongs = art['songs'] as List<Song>;
+
+                                    return GestureDetector(
+                                      onTap: () {
+                                        final pl = Playlist(
+                                          id: 'art_${art['name']}',
+                                          title: '${art['name']} Collection',
+                                          description: '${artSongs.length} songs by ${art['name']}',
+                                          coverUrl: art['image'] as String,
+                                          songs: artSongs,
+                                        );
+                                        widget.state.playPlaylist(pl);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Playing ${art['name']} playlist (Continuous Flow)'),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            width: 66,
+                                            height: 66,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: p.primary.withOpacity(0.5),
+                                                width: 2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: p.glow.withOpacity(0.25),
+                                                  blurRadius: 10,
+                                                ),
+                                              ],
+                                            ),
+                                            child: ClipOval(
+                                              child: Image.network(
+                                                art['image'] as String,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => Icon(Icons.person, color: p.textSecondary),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          SizedBox(
+                                            width: 76,
+                                            child: Text(
+                                              art['name'] as String,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: p.textPrimary,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            'Artist • ${artSongs.length} Tracks',
+                                            style: TextStyle(fontSize: 9, color: p.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                          );
+                        }(),
+
+                        // 2. MATCHING PLAYLISTS SECTION
+                        () {
+                          final searchPlaylists = _generatePlaylistsFromResults(_activeSearchQuery, _searchResults);
+                          if (searchPlaylists.isEmpty) return const SizedBox.shrink();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Playlists for "$_activeSearchQuery"',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Continuous Play',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF1DB954),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 180,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: searchPlaylists.length,
+                                  separatorBuilder: (_, __) => const SizedBox(width: 14),
+                                  itemBuilder: (context, idx) {
+                                    final pl = searchPlaylists[idx];
+
+                                    return NeumorphicBox(
+                                      width: 140,
+                                      borderRadius: 18,
+                                      padding: const EdgeInsets.all(8),
+                                      onTap: () {
+                                        widget.state.playPlaylist(pl);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Playing playlist: ${pl.title} (Plays full list)'),
+                                            duration: const Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Stack(
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius: BorderRadius.circular(14),
+                                                child: Image.network(
+                                                  pl.coverUrl,
+                                                  width: 124,
+                                                  height: 105,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) => Container(width: 124, height: 105, color: Colors.white12),
+                                                ),
+                                              ),
+                                              Positioned(
+                                                top: 6,
+                                                left: 6,
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF1DB954),
+                                                    borderRadius: BorderRadius.circular(5),
+                                                  ),
+                                                  child: const Text(
+                                                    'PLAYLIST',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 7,
+                                                      fontWeight: FontWeight.w900,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              Positioned(
+                                                bottom: 6,
+                                                right: 6,
+                                                child: Container(
+                                                  width: 26,
+                                                  height: 26,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    color: p.surface.withOpacity(0.9),
+                                                  ),
+                                                  child: Icon(Icons.play_arrow_rounded, color: p.primary, size: 16),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            pl.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: p.textPrimary,
+                                            ),
+                                          ),
+                                          Text(
+                                            '${pl.songs.length} Tracks • Playlist',
+                                            style: TextStyle(fontSize: 10, color: p.textSecondary),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                          );
+                        }(),
+
+                        // 3. SINGLE SONGS SECTION (Stops after track completes)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Single Songs',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: p.textPrimary,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'STOPS AFTER TRACK',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFF59E0B),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
                         for (final song in _searchResults) ...[
                           SongTile(
                             song: song,
@@ -256,7 +579,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             isPlaying: widget.state.isPlaying && song.id == widget.state.currentSong?.id,
                             isLiked: widget.state.isSongLiked(song.id),
                             onTap: () {
-                              widget.state.playSong(song, newQueue: _searchResults);
+                              widget.state.playSingleSong(song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Playing "${song.title}" (Single Song Mode)'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
                             },
                             onLikeTap: () => widget.state.toggleLike(song.id),
                           ),

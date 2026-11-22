@@ -478,29 +478,59 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
     return NeumorphicBox(
       width: 54,
-      height: 395,
+      height: 425,
       borderRadius: 27,
       hasGlow: true,
       glowColor: p.glow.withOpacity(0.3),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // 1. Repeat / Loop Button
+          // 1. Shuffle Option Button
+          IconButton(
+            icon: Icon(
+              Icons.shuffle_rounded,
+              size: 20,
+              color: widget.state.isShuffle ? p.primary : p.textSecondary,
+            ),
+            tooltip: 'Shuffle Mode',
+            onPressed: () {
+              widget.state.toggleShuffle();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Shuffle: ${widget.state.isShuffle ? "Enabled" : "Disabled"}'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+
+          // 2. Repeat / Loop Option Button
           IconButton(
             icon: Icon(
               widget.state.repeatMode == BitifyRepeatMode.one
                   ? Icons.repeat_one_rounded
                   : Icons.repeat_rounded,
-              size: 22,
+              size: 20,
               color: widget.state.repeatMode != BitifyRepeatMode.off
                   ? p.primary
                   : p.textSecondary,
             ),
             tooltip: 'Repeat Mode',
-            onPressed: widget.state.toggleRepeat,
+            onPressed: () {
+              widget.state.toggleRepeat();
+              final modeText = widget.state.repeatMode == BitifyRepeatMode.all
+                  ? 'Repeat All'
+                  : (widget.state.repeatMode == BitifyRepeatMode.one ? 'Repeat One' : 'Repeat Off');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Repeat: $modeText'),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
           ),
 
-          // 2. Next Track
+          // 3. Next Track
           IconButton(
             icon: Icon(
               Icons.skip_next_rounded,
@@ -511,7 +541,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             onPressed: widget.state.next,
           ),
 
-          // 3. Play / Pause Button (Embossed Neumorphic circle in center)
+          // 4. Play / Pause Button (Embossed Neumorphic circle in center)
           NeumorphicBox(
             width: 44,
             height: 44,
@@ -528,7 +558,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             ),
           ),
 
-          // 4. Previous Track
+          // 5. Previous Track
           IconButton(
             icon: Icon(
               Icons.skip_previous_rounded,
@@ -539,7 +569,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             onPressed: widget.state.previous,
           ),
 
-          // 5. Heart / Like Button (Red if liked)
+          // 6. Heart / Like Button (Red if liked)
           IconButton(
             icon: Icon(
               isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
@@ -550,7 +580,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             onPressed: () => widget.state.toggleLike(song.id),
           ),
 
-          // 6. Download Button (Just below the love sign)
+          // 7. Download Button (Just below the love sign)
           IconButton(
             icon: Icon(
               isDownloaded
@@ -664,6 +694,133 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 8),
+          // Interactive Player Options: Shuffle, Mode, Repeat
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Shuffle Option Button
+              GestureDetector(
+                onTap: () {
+                  widget.state.toggleShuffle();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Shuffle: ${widget.state.isShuffle ? "Enabled" : "Disabled"}'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: widget.state.isShuffle ? p.primary.withOpacity(0.18) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: widget.state.isShuffle ? p.primary : p.textSecondary.withOpacity(0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.shuffle_rounded,
+                        size: 15,
+                        color: widget.state.isShuffle ? p.primary : p.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Shuffle',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: widget.state.isShuffle ? FontWeight.w800 : FontWeight.w600,
+                          color: widget.state.isShuffle ? p.primary : p.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Playback mode indicator (Single Track vs Playlist Flow)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: p.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  widget.state.isSingleSongMode ? 'SINGLE TRACK' : 'PLAYLIST FLOW',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: widget.state.isSingleSongMode ? const Color(0xFFF59E0B) : const Color(0xFF1DB954),
+                  ),
+                ),
+              ),
+
+              // Repeat Option Button
+              GestureDetector(
+                onTap: () {
+                  widget.state.toggleRepeat();
+                  final modeText = widget.state.repeatMode == BitifyRepeatMode.all
+                      ? 'Repeat All'
+                      : (widget.state.repeatMode == BitifyRepeatMode.one ? 'Repeat One' : 'Repeat Off');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Repeat: $modeText'),
+                      duration: const Duration(seconds: 1),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: widget.state.repeatMode != BitifyRepeatMode.off
+                        ? p.primary.withOpacity(0.18)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: widget.state.repeatMode != BitifyRepeatMode.off
+                          ? p.primary
+                          : p.textSecondary.withOpacity(0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.state.repeatMode == BitifyRepeatMode.one
+                            ? Icons.repeat_one_rounded
+                            : Icons.repeat_rounded,
+                        size: 15,
+                        color: widget.state.repeatMode != BitifyRepeatMode.off
+                            ? p.primary
+                            : p.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.state.repeatMode == BitifyRepeatMode.one
+                            ? 'One'
+                            : (widget.state.repeatMode == BitifyRepeatMode.all ? 'All' : 'Repeat'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: widget.state.repeatMode != BitifyRepeatMode.off
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                          color: widget.state.repeatMode != BitifyRepeatMode.off
+                              ? p.primary
+                              : p.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -744,7 +744,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   if (playlist.songs.isNotEmpty) {
-                    widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
+                    widget.state.playPlaylist(playlist);
                   }
                 },
                 child: Container(
@@ -870,7 +870,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isCurrent = song.id == widget.state.currentSong?.id;
 
     return GestureDetector(
-      onTap: () => widget.state.playSong(song),
+      onTap: () => widget.state.playSingleSong(song),
       child: Column(
         children: [
           NeumorphicBox(
@@ -959,7 +959,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       hasGlow: isCurrent,
       glowColor: p.glow.withOpacity(0.4),
-      onTap: () => widget.state.playSong(song),
+      onTap: () => widget.state.playSingleSong(song),
       child: Row(
         children: [
           // Circular thumbnail

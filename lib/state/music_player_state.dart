@@ -34,6 +34,9 @@ class MusicPlayerState extends ChangeNotifier {
   // Liked songs set
   final Set<String> _likedSongIds = {'s1', 's2', 's4', 's6'};
 
+  // Single Song Playback Mode (Stop when single track completes) vs Playlist Flow
+  bool _isSingleSongMode = false;
+
   // Categorized Catalogs and Playlists (Bollywood, Hollywood, Bengali)
   List<Song> _bollywoodSongs = [];
   List<Song> _hollywoodSongs = [];
@@ -114,6 +117,13 @@ class MusicPlayerState extends ChangeNotifier {
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.resume();
         }
+      } else if (_isSingleSongMode && _repeatMode == BitifyRepeatMode.off) {
+        // User selected a single song: stop immediately after track finishes
+        _isPlaying = false;
+        _positionSeconds = 0;
+        _audioPlayer.seek(Duration.zero);
+        _audioPlayer.stop();
+        notifyListeners();
       } else {
         next();
       }
@@ -259,6 +269,21 @@ class MusicPlayerState extends ChangeNotifier {
 
   bool isSongLiked(String id) => _likedSongIds.contains(id);
 
+  bool get isSingleSongMode => _isSingleSongMode;
+
+  Future<void> playSingleSong(Song song) async {
+    _isSingleSongMode = true;
+    await playSong(song, newQueue: [song], isSingleSong: true);
+  }
+
+  Future<void> playPlaylist(Playlist playlist, {int startIndex = 0}) async {
+    _isSingleSongMode = false;
+    final startSong = (startIndex >= 0 && startIndex < playlist.songs.length)
+        ? playlist.songs[startIndex]
+        : playlist.songs.first;
+    await playSong(startSong, newQueue: playlist.songs, isSingleSong: false);
+  }
+
   void toggleSpotifyAlgorithm() {
     _spotifyAlgorithmEnabled = !_spotifyAlgorithmEnabled;
     notifyListeners();
@@ -266,15 +291,24 @@ class MusicPlayerState extends ChangeNotifier {
 
   void playWithSpotifyAlgorithm(Song seedSong, {List<Song>? contextPlaylist}) {
     _spotifyAlgorithmEnabled = true;
+    _isSingleSongMode = false;
     final pool = (contextPlaylist != null && contextPlaylist.isNotEmpty)
         ? contextPlaylist
         : MockMusicRepository.allSongs;
     final algorithmicQueue = SpotifyAlgorithmService.generateAlgorithmicQueue(seedSong, pool);
-    playSong(seedSong, newQueue: algorithmicQueue);
+    playSong(seedSong, newQueue: algorithmicQueue, isSingleSong: false);
   }
 
-  Future<void> playSong(Song song, {List<Song>? newQueue}) async {
+  Future<void> playSong(Song song, {List<Song>? newQueue, bool? isSingleSong}) async {
     _currentSong = song;
+    if (isSingleSong != null) {
+      _isSingleSongMode = isSingleSong;
+    } else if (newQueue != null && newQueue.length == 1) {
+      _isSingleSongMode = true;
+    } else if (newQueue != null && newQueue.length > 1) {
+      _isSingleSongMode = false;
+    }
+
     if (!_history.any((s) => s.id == song.id)) {
       _history.insert(0, song);
     }

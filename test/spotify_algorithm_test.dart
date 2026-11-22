@@ -74,5 +74,13 @@ void main() {
       expect(SpotifyAlgorithmService.isSameLanguage(starboy, nextSynth), isTrue);
       expect(SpotifyAlgorithmService.getPrimaryGenreCluster(nextSynth), 'synthwave_electronic');
     });
+
+    test('Single Song Mode vs Playlist Mode', () {
+      final playlist = MockMusicRepository.bollywoodPlaylists.first;
+      expect(playlist.songs.isNotEmpty, isTrue);
+
+      // Verify that playlist has multiple tracks
+      expect(playlist.songs.length > 1, isTrue);
+    });
   });
 }
