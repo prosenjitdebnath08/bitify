@@ -585,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: Text('Playing ${playlist.title} with Spotify Algorithm'),
+                                child: Text('Playing ${playlist.title}'),
                               ),
                             ],
                           ),
@@ -716,7 +716,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${playlist.songs.length} Tracks • Spotify Algorithm Flow',
+                          '${playlist.songs.length} Tracks • Curated Bitify Flow',
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -729,7 +729,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              // Action Button: Play All with Spotify Algorithm
+              // Action Button: Play All
               GestureDetector(
                 onTap: () {
                   Navigator.pop(ctx);
@@ -759,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
                       SizedBox(width: 6),
                       Text(
-                        'PLAY WITH SPOTIFY ALGORITHM',
+                        'PLAY PLAYLIST',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,

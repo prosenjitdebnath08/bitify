@@ -1002,28 +1002,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
           const SizedBox(width: 8),
           Text(
-            'BITIFY',
+            'BITIFY MASTER AUDIO',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
               letterSpacing: 2.0,
               color: p.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            width: 4,
-            height: 4,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: p.primary),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            'SPOTIFY ALGORITHM',
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-              color: widget.state.spotifyAlgorithmEnabled ? const Color(0xFF1DB954) : p.primary,
             ),
           ),
         ],

@@ -20,6 +20,7 @@ class _SearchScreenState extends State<SearchScreen> {
   MusicSource? _selectedSource;
   String _query = '';
   List<Song> _searchResults = [];
+  List<Playlist> _playlistResults = [];
   bool _isSearching = false;
   Timer? _debounceTimer;
 
@@ -39,19 +40,28 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
+        _playlistResults = [];
         _isSearching = false;
       });
       return;
     }
 
-    _debounceTimer = Timer(const Duration(milliseconds: 400), () async {
+    _debounceTimer = Timer(const Duration(milliseconds: 350), () async {
       setState(() => _isSearching = true);
-      final results = await MusicApiService.searchOnline(query.trim());
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _isSearching = false;
-        });
+      try {
+        final songs = await MusicApiService.searchOnline(query.trim());
+        final playlists = await MusicApiService.searchMultiSourcePlaylists(query.trim(), songs);
+        if (mounted) {
+          setState(() {
+            _searchResults = songs;
+            _playlistResults = playlists;
+            _isSearching = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isSearching = false);
+        }
       }
     });
   }
@@ -238,7 +248,12 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchResults(List<Song> songs, SongColorPalette p) {
-    if (songs.isEmpty) {
+    final filteredPlaylists = _playlistResults.where((pl) {
+      if (_selectedSource == null) return true;
+      return pl.source == _selectedSource;
+    }).toList();
+
+    if (songs.isEmpty && filteredPlaylists.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -259,23 +274,522 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 150),
-      itemCount: songs.length,
-      itemBuilder: (context, i) {
-        final song = songs[i];
-        final isCurrent = song.id == widget.state.currentSong?.id;
+    return CustomScrollView(
+      slivers: [
+        // 1. Multi-source Playlists & Mixes (YouTube Music, Spotify, JioSaavn)
+        if (filteredPlaylists.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Playlists & Mixes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: p.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: p.primary.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: p.primary.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      '${filteredPlaylists.length} Available',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: p.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildPlaylistsCarousel(filteredPlaylists, p),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 14)),
+        ],
 
-        return SongTile(
-          song: song,
-          isCurrent: isCurrent,
-          isPlaying: widget.state.isPlaying && isCurrent,
-          isLiked: widget.state.isSongLiked(song.id),
-          onTap: () => widget.state.playSong(song, newQueue: songs),
-          onLikeTap: () => widget.state.toggleLike(song.id),
+        // 2. Tracks & Singles Section Header
+        if (songs.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Tracks & Singles',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: p.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${songs.length} Tracks',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: p.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // 3. Songs List
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, i) {
+              final song = songs[i];
+              final isCurrent = song.id == widget.state.currentSong?.id;
+
+              return SongTile(
+                song: song,
+                isCurrent: isCurrent,
+                isPlaying: widget.state.isPlaying && isCurrent,
+                isLiked: widget.state.isSongLiked(song.id),
+                onTap: () => _handleSongTap(song, songs, p),
+                onLikeTap: () => widget.state.toggleLike(song.id),
+              );
+            },
+            childCount: songs.length,
+          ),
+        ),
+
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 140),
+        ),
+      ],
+    );
+  }
+
+  /// Horizontal Carousel for YouTube Music, Spotify & JioSaavn Playlists
+  Widget _buildPlaylistsCarousel(List<Playlist> playlists, SongColorPalette p) {
+    return SizedBox(
+      height: 220,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: playlists.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final pl = playlists[i];
+          final Color badgeColor;
+          final String badgeText;
+
+          switch (pl.source) {
+            case MusicSource.youtube:
+              badgeColor = const Color(0xFFEF4444);
+              badgeText = 'YOUTUBE MUSIC';
+              break;
+            case MusicSource.spotify:
+              badgeColor = const Color(0xFF10B981);
+              badgeText = 'SPOTIFY';
+              break;
+            case MusicSource.jiosaavn:
+              badgeColor = const Color(0xFF06B6D4);
+              badgeText = 'JIOSAAVN';
+              break;
+            default:
+              badgeColor = const Color(0xFF8B5CF6);
+              badgeText = 'PLAYLIST';
+          }
+
+          return Container(
+            width: 155,
+            decoration: BoxDecoration(
+              color: p.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: p.isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: p.shadowDark.withOpacity(p.isDark ? 0.5 : 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => _showPlaylistModal(context, pl, p),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          pl.coverUrl,
+                          height: 125,
+                          width: 135,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 125,
+                            width: 135,
+                            decoration: BoxDecoration(
+                              color: badgeColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(Icons.queue_music_rounded, color: badgeColor, size: 36),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: badgeColor.withOpacity(0.5),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 8,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: () {
+                            if (pl.songs.isNotEmpty) {
+                              widget.state.playPlaylist(pl);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Playing ${pl.title} (${pl.source.displayName})'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: p.surface.withOpacity(0.92),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 6,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              size: 20,
+                              color: badgeColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    pl.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: p.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${pl.songs.length} Tracks • ${pl.source.displayName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: p.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Full Playlist / Album Exploration Modal with Play Choice
+  void _showPlaylistModal(BuildContext context, Playlist playlist, SongColorPalette p) {
+    final Color badgeColor;
+    switch (playlist.source) {
+      case MusicSource.youtube:
+        badgeColor = const Color(0xFFEF4444);
+        break;
+      case MusicSource.spotify:
+        badgeColor = const Color(0xFF10B981);
+        break;
+      case MusicSource.jiosaavn:
+        badgeColor = const Color(0xFF06B6D4);
+        break;
+      default:
+        badgeColor = const Color(0xFF8B5CF6);
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: p.textSecondary.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      playlist.coverUrl,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: badgeColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(Icons.music_note_rounded, color: badgeColor, size: 32),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          playlist.title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          playlist.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: badgeColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (playlist.songs.isNotEmpty) {
+                    widget.state.playPlaylist(playlist);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [badgeColor, badgeColor.withOpacity(0.8)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: badgeColor.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                      const SizedBox(width: 6),
+                      Text(
+                        'PLAY FULL PLAYLIST (${playlist.source.displayName.toUpperCase()})',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: p.textSecondary.withOpacity(0.2)),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: playlist.songs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, idx) {
+                    final song = playlist.songs[idx];
+                    final isCurrent = song.id == widget.state.currentSong?.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        widget.state.playSong(song, newQueue: playlist.songs);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isCurrent ? p.primary.withOpacity(0.15) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                song.coverUrl,
+                                width: 42,
+                                height: 42,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 42,
+                                  height: 42,
+                                  color: Colors.white12,
+                                  child: const Icon(Icons.music_note, color: Colors.white54, size: 20),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                      color: isCurrent ? p.primary : p.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: p.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              song.formattedDuration,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: p.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
+  }
+
+  /// Handle song tap: plays song with full queue or lets user pick
+  void _handleSongTap(Song song, List<Song> allSongs, SongColorPalette p) {
+    widget.state.playSong(song, newQueue: allSongs);
   }
 
   Widget _buildBrowseCategories(SongColorPalette p) {

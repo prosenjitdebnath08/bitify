@@ -159,6 +159,7 @@ class Playlist {
   final String coverUrl;
   final List<Song> songs;
   final bool isCustom;
+  final MusicSource source;
 
   const Playlist({
     required this.id,
@@ -167,5 +168,6 @@ class Playlist {
     required this.coverUrl,
     this.songs = const [],
     this.isCustom = false,
+    this.source = MusicSource.spotify,
   });
 }
