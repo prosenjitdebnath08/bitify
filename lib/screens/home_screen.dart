@@ -255,12 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           // 2. BOLLYWOOD PLAYLISTS (Bollywood Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Bollywood') ...[
-                            _buildSectionHeader('Bollywood Playlists', p, badge: 'JIOSAAVN & SPOTIFY'),
+                            _buildSectionHeader('Bollywood Playlists', p, badge: 'JIOSAAVN & SPOTIFY', badgeColor: const Color(0xFFF59E0B)),
                             const SizedBox(height: 14),
                             _buildPlaylistCarousel(
-                              widget.state.bollywoodPlaylists.isNotEmpty
-                                  ? widget.state.bollywoodPlaylists
-                                  : MockMusicRepository.bollywoodPlaylists,
+                              widget.state.bollywoodPlaylists,
                               p,
                               badgeLabel: 'BOLLYWOOD',
                               badgeColor: const Color(0xFFF59E0B),
@@ -270,12 +268,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           // 3. HOLLYWOOD PLAYLISTS (Hollywood / Global Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Hollywood') ...[
-                            _buildSectionHeader('Hollywood Playlists', p, badge: 'SPOTIFY GLOBAL'),
+                            _buildSectionHeader('Hollywood Playlists', p, badge: 'SPOTIFY GLOBAL', badgeColor: const Color(0xFF1DB954)),
                             const SizedBox(height: 14),
                             _buildPlaylistCarousel(
-                              widget.state.hollywoodPlaylists.isNotEmpty
-                                  ? widget.state.hollywoodPlaylists
-                                  : MockMusicRepository.hollywoodPlaylists,
+                              widget.state.hollywoodPlaylists,
                               p,
                               badgeLabel: 'SPOTIFY',
                               badgeColor: const Color(0xFF1DB954),
@@ -285,12 +281,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
                           // 4. BENGALI PLAYLISTS (Bengali Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Bengali') ...[
-                            _buildSectionHeader('Bengali Playlists', p, badge: 'BANGLA HITS'),
+                            _buildSectionHeader('Bengali Playlists', p, badge: 'BANGLA HITS', badgeColor: const Color(0xFF06B6D4)),
                             const SizedBox(height: 14),
                             _buildPlaylistCarousel(
-                              widget.state.bengaliPlaylists.isNotEmpty
-                                  ? widget.state.bengaliPlaylists
-                                  : MockMusicRepository.bengaliPlaylists,
+                              widget.state.bengaliPlaylists,
                               p,
                               badgeLabel: 'BENGALI',
                               badgeColor: const Color(0xFF06B6D4),
@@ -298,7 +292,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 28),
                           ],
 
-                          // 5. SECTION: Popular Playlists (Tall squircle neumorphic cards, exact match to reference screenshot)
+                          // 5. TRENDING ALBUMS & EPS (Full Albums from JioSaavn & Spotify)
+                          _buildSectionHeader('Trending Albums & EPs', p, badge: 'FULL ALBUMS', badgeColor: const Color(0xFF8B5CF6)),
+                          const SizedBox(height: 14),
+                          _buildAlbumCarousel(widget.state.trendingAlbums, p),
+                          const SizedBox(height: 28),
+
+                          // 6. POPULAR PLAYLISTS
                           _buildSectionHeader('Popular Playlists', p),
                           const SizedBox(height: 14),
                           Padding(
@@ -333,22 +333,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 28),
-
-                          // 6. SECTION: News / Top Tracks (Horizontal neumorphic pill cards, exact match to reference screenshot)
-                          _buildSectionHeader('News', p),
-                          const SizedBox(height: 12),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Column(
-                              children: [
-                                for (int i = 0; i < (trendingFiltered.isNotEmpty ? trendingFiltered.length : songs.length) && i < 6; i++) ...[
-                                  _buildNewsTrackPill((trendingFiltered.isNotEmpty ? trendingFiltered : songs)[i], p),
-                                  if (i < 5) const SizedBox(height: 12),
-                                ],
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -363,73 +347,79 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Section Header with title and optional badge
-  Widget _buildSectionHeader(String title, SongColorPalette p, {String? badge}) {
+  /// Section Header with title and optional badge (no non-functional 3 dots)
+  Widget _buildSectionHeader(String title, SongColorPalette p, {String? badge, Color badgeColor = const Color(0xFF1DB954)}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: p.textPrimary,
-                  letterSpacing: -0.2,
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: p.textPrimary,
+              letterSpacing: -0.2,
+            ),
+          ),
+          if (badge != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: badgeColor.withOpacity(0.5),
+                  width: 1,
                 ),
               ),
-              if (badge != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1DB954).withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: const Color(0xFF1DB954).withOpacity(0.5),
-                      width: 1,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.graphic_eq_rounded, size: 10, color: badgeColor),
+                  const SizedBox(width: 3),
+                  Text(
+                    badge,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: badgeColor,
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.graphic_eq_rounded, size: 10, color: Color(0xFF1DB954)),
-                      const SizedBox(width: 3),
-                      Text(
-                        badge,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          color: Color(0xFF1DB954),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-          NeumorphicBox(
-            width: 36,
-            height: 20,
-            borderRadius: 10,
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(width: 3, height: 3, decoration: BoxDecoration(shape: BoxShape.circle, color: p.textSecondary)),
-                  const SizedBox(width: 2),
-                  Container(width: 3, height: 3, decoration: BoxDecoration(shape: BoxShape.circle, color: p.textSecondary)),
-                  const SizedBox(width: 2),
-                  Container(width: 3, height: 3, decoration: BoxDecoration(shape: BoxShape.circle, color: p.textSecondary)),
                 ],
               ),
             ),
-          ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// Sleek gradient fallback for failed/missing network images
+  Widget _buildImageFallback({double? width, double? height, double borderRadius = 12, required SongColorPalette palette}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            palette.surface,
+            palette.surface.withOpacity(0.6),
+          ],
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          color: palette.primary.withOpacity(0.7),
+          size: (width != null && width < 50) ? 20 : 28,
+        ),
       ),
     );
   }
@@ -552,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 125,
                   width: 135,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(height: 125, color: Colors.white12),
+                  errorBuilder: (_, __, ___) => _buildImageFallback(width: 135, height: 125, borderRadius: 16, palette: palette),
                 ),
               ),
               Positioned(
@@ -698,7 +688,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 72,
                       height: 72,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(width: 72, height: 72, color: Colors.white12),
+                      errorBuilder: (_, __, ___) => _buildImageFallback(width: 72, height: 72, borderRadius: 16, palette: p),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -813,7 +803,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 width: 42,
                                 height: 42,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(width: 42, height: 42, color: Colors.white12),
+                                errorBuilder: (_, __, ___) => _buildImageFallback(width: 42, height: 42, borderRadius: 8, palette: p),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -884,7 +874,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Image.network(
                 song.coverUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.white24),
+                errorBuilder: (_, __, ___) => _buildImageFallback(borderRadius: 38, palette: p),
               ),
             ),
           ),
@@ -916,7 +906,7 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 140,
               width: double.infinity,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(height: 140, color: Colors.white12),
+              errorBuilder: (_, __, ___) => _buildImageFallback(height: 140, borderRadius: 18, palette: palette),
             ),
           ),
           const SizedBox(height: 12),
@@ -949,66 +939,331 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Horizontal Neumorphic Pill Track Card in "News" section
-  Widget _buildNewsTrackPill(Song song, SongColorPalette p) {
-    final isCurrent = song.id == widget.state.currentSong?.id;
-    final isPlaying = widget.state.isPlaying && isCurrent;
-
-    return NeumorphicBox(
-      borderRadius: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      hasGlow: isCurrent,
-      glowColor: p.glow.withOpacity(0.4),
-      onTap: () => widget.state.playSingleSong(song),
-      child: Row(
-        children: [
-          // Circular thumbnail
-          ClipOval(
-            child: Image.network(
-              song.coverUrl,
-              width: 44,
-              height: 44,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(width: 44, height: 44, color: Colors.white24),
-            ),
-          ),
-          const SizedBox(width: 14),
-          // Title and Subtitle
-          Expanded(
+  /// Trending Albums Carousel Section
+  Widget _buildAlbumCarousel(List<Album> albums, SongColorPalette p) {
+    return SizedBox(
+      height: 216,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: albums.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final alb = albums[i];
+          return NeumorphicBox(
+            width: 155,
+            borderRadius: 22,
+            padding: const EdgeInsets.all(10),
+            onTap: () => _showAlbumModal(context, alb, p),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        alb.coverUrl,
+                        height: 125,
+                        width: 135,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _buildImageFallback(width: 135, height: 125, borderRadius: 16, palette: p),
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8B5CF6),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF8B5CF6).withOpacity(0.5),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'ALBUM',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 8,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (alb.songs.isNotEmpty) {
+                            widget.state.playSong(alb.songs.first, newQueue: alb.songs);
+                          }
+                        },
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: p.surface.withOpacity(0.9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            size: 18,
+                            color: p.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Text(
-                  song.title,
+                  alb.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w700,
-                    color: isCurrent ? p.primary : p.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    color: p.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${song.artist} • ${song.formattedDuration}',
+                  '${alb.artist} • ${alb.songs.length} Tracks',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     color: p.textSecondary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-          ),
-          // Playing or arrow indicator
-          if (isPlaying)
-            Icon(Icons.equalizer_rounded, color: p.primary, size: 22)
-          else
-            Icon(Icons.play_arrow_rounded, color: p.textSecondary, size: 20),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  /// Full Album Details Bottom Sheet
+  void _showAlbumModal(BuildContext context, Album album, SongColorPalette p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: p.textSecondary.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      album.coverUrl,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildImageFallback(width: 72, height: 72, borderRadius: 16, palette: p),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          album.title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          album.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${album.songs.length} Tracks • Full Album',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF8B5CF6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (album.songs.isNotEmpty) {
+                    widget.state.playSong(album.songs.first, newQueue: album.songs);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF8B5CF6).withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                      SizedBox(width: 6),
+                      Text(
+                        'PLAY FULL ALBUM',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: p.textSecondary.withOpacity(0.2)),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: album.songs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, idx) {
+                    final song = album.songs[idx];
+                    final isCurrent = song.id == widget.state.currentSong?.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        widget.state.playSong(song, newQueue: album.songs);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isCurrent ? p.primary.withOpacity(0.15) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                song.coverUrl,
+                                width: 42,
+                                height: 42,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildImageFallback(width: 42, height: 42, borderRadius: 8, palette: p),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                      color: isCurrent ? p.primary : p.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: p.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '${song.durationSeconds ~/ 60}:${(song.durationSeconds % 60).toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: p.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

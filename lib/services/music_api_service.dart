@@ -214,7 +214,7 @@ class MusicApiService {
   }
 
   /// Fetch songs tailored for specific category: 'bollywood', 'hollywood', or 'bengali'
-  static Future<List<Song>> fetchCategorySongs(String categoryQuery, {int limit = 25}) async {
+  static Future<List<Song>> fetchCategorySongs(String categoryQuery, {int limit = 30}) async {
     try {
       final songs = await searchOnline(categoryQuery, limit: limit);
       if (songs.isNotEmpty) return songs;
@@ -222,6 +222,127 @@ class MusicApiService {
       debugPrint('Error fetching category songs ($categoryQuery): $e');
     }
     return [];
+  }
+
+  /// Fetch a complete album from JioSaavn by album ID
+  static Future<Album?> fetchAlbumById(String albumId) async {
+    try {
+      final uri = Uri.parse(
+        '$_jioSaavnBase?__call=content.getAlbumDetails&albumid=$albumId&_format=json&ctx=android',
+      );
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Bitify/1.0',
+      }).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body) as Map<String, dynamic>;
+        final title = _cleanText(data['title']?.toString() ?? data['name']?.toString() ?? 'Album');
+        final primaryArtists = _cleanText(data['primary_artists']?.toString() ?? '');
+        final coverUrl = _upgradeImage(data['image']?.toString());
+        final year = int.tryParse(data['year']?.toString() ?? '2023') ?? 2023;
+
+        final rawSongs = data['songs'] as List<dynamic>? ?? [];
+        final List<Song> songs = [];
+
+        for (final item in rawSongs) {
+          final id = item['id']?.toString() ?? '';
+          final encUrl = item['encrypted_media_url'] as String? ?? '';
+          final directAudioUrl = decryptMediaUrl(encUrl);
+          if (directAudioUrl == null || directAudioUrl.isEmpty) continue;
+
+          final sTitle = _cleanText(item['song']?.toString() ?? item['title']?.toString() ?? title);
+          final sArtist = _cleanText(item['primary_artists']?.toString() ?? (primaryArtists.isNotEmpty ? primaryArtists : 'Artist'));
+          final sDur = int.tryParse(item['duration']?.toString() ?? '200') ?? 200;
+          final sImg = _upgradeImage(item['image']?.toString() ?? coverUrl);
+          final sLang = item['language']?.toString() ?? 'Hindi';
+
+          songs.add(
+            Song(
+              id: 'js_alb_$id',
+              title: sTitle,
+              artist: sArtist,
+              album: title,
+              durationSeconds: sDur > 0 ? sDur : 200,
+              coverUrl: sImg,
+              audioUrl: directAudioUrl,
+              source: MusicSource.jiosaavn,
+              isLossless: true,
+              isDolbyAtmos: true,
+              language: sLang.toLowerCase().contains('bengali') ? 'Bengali' : (sLang.toLowerCase().contains('english') ? 'English' : 'Hindi'),
+              genre: sLang.toLowerCase().contains('bengali') ? 'Bengali / Melodies' : (sLang.toLowerCase().contains('english') ? 'Pop / Dance' : 'Bollywood / Romantic'),
+              lyrics: _generateLyricsPreview(sTitle, sArtist),
+            ),
+          );
+        }
+
+        if (songs.isNotEmpty) {
+          return Album(
+            id: 'alb_$albumId',
+            title: title,
+            artist: primaryArtists.isNotEmpty ? primaryArtists : songs.first.artist,
+            coverUrl: coverUrl,
+            year: year,
+            songs: songs,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching album details: $e');
+    }
+    return null;
+  }
+
+  /// Search and fetch full album with all its tracks
+  static Future<Album?> searchAndFetchAlbum(String query) async {
+    try {
+      final uri = Uri.parse(
+        '$_jioSaavnBase?__call=search.getAlbumResults&q=${Uri.encodeComponent(query)}&_format=json&ctx=android&n=1',
+      );
+      final res = await http.get(uri, headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Bitify/1.0',
+      }).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body) as Map<String, dynamic>;
+        final results = data['results'] as List<dynamic>? ?? [];
+        if (results.isNotEmpty) {
+          final rawId = results[0]['albumid'] ?? results[0]['id'];
+          final aid = (rawId != null && rawId.toString() != 'null') ? rawId.toString() : '';
+          if (aid.isNotEmpty) {
+            return await fetchAlbumById(aid);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error searching album ($query): $e');
+    }
+    return null;
+  }
+
+  /// Fetch popular full albums across Bollywood, Hollywood and Bengali
+  static Future<List<Album>> fetchTrendingAlbums() async {
+    final List<Album> albums = [];
+    const queries = [
+      'Brahmastra',
+      'Future Nostalgia',
+      'After Hours',
+      'Bhediya',
+      'Jab We Met',
+      'Autograph Bengali',
+    ];
+
+    for (final q in queries) {
+      try {
+        final alb = await searchAndFetchAlbum(q);
+        if (alb != null && alb.songs.isNotEmpty) {
+          albums.add(alb);
+        }
+      } catch (e) {
+        debugPrint('Error fetching album $q: $e');
+      }
+    }
+
+    return albums;
   }
 
   static List<LyricLine> _generateLyricsPreview(String title, String artist) {

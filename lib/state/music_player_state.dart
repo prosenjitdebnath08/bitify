@@ -44,6 +44,7 @@ class MusicPlayerState extends ChangeNotifier {
   List<Playlist> _bollywoodPlaylists = [];
   List<Playlist> _hollywoodPlaylists = [];
   List<Playlist> _bengaliPlaylists = [];
+  List<Album> _trendingAlbums = [];
 
   // Equalizer
   final List<String> eqFrequencies = [
@@ -74,6 +75,7 @@ class MusicPlayerState extends ChangeNotifier {
     _bollywoodPlaylists = List.from(MockMusicRepository.bollywoodPlaylists);
     _hollywoodPlaylists = List.from(MockMusicRepository.hollywoodPlaylists);
     _bengaliPlaylists = List.from(MockMusicRepository.bengaliPlaylists);
+    _trendingAlbums = List.from(MockMusicRepository.albums);
 
     _bollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'hindi').toList();
     _hollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'english').toList();
@@ -135,73 +137,154 @@ class MusicPlayerState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Fetch Bollywood
-      final bWood = await MusicApiService.fetchCategorySongs('Bollywood Hits', limit: 20);
-      if (bWood.isNotEmpty) {
-        _bollywoodSongs = bWood;
+      // 1. Parallel fetch all category playlists and full albums
+      final results = await Future.wait([
+        // Bollywood (0..3)
+        MusicApiService.fetchCategorySongs('Bollywood Hits', limit: 30),
+        MusicApiService.fetchCategorySongs('Bollywood Romance', limit: 30),
+        MusicApiService.fetchCategorySongs('Arijit Singh', limit: 30),
+        MusicApiService.fetchCategorySongs('Desi Party', limit: 30),
+
+        // Hollywood (4..7)
+        MusicApiService.fetchCategorySongs('Pop Hits', limit: 30),
+        MusicApiService.fetchCategorySongs('The Weeknd Synthwave', limit: 30),
+        MusicApiService.fetchCategorySongs('Dua Lipa Pop', limit: 30),
+        MusicApiService.fetchCategorySongs('Billboard Hits', limit: 30),
+
+        // Bengali (8..10)
+        MusicApiService.fetchCategorySongs('Bangla Hits', limit: 30),
+        MusicApiService.fetchCategorySongs('Arijit Singh Bengali', limit: 30),
+        MusicApiService.fetchCategorySongs('Anupam Roy', limit: 30),
+
+        // Albums (11)
+        _fetchCuratedAlbums(),
+      ]);
+
+      final bHits = results[0] as List<Song>;
+      final bRomance = results[1] as List<Song>;
+      final bArijit = results[2] as List<Song>;
+      final bParty = results[3] as List<Song>;
+
+      final hTop = results[4] as List<Song>;
+      final hSynth = results[5] as List<Song>;
+      final hPop = results[6] as List<Song>;
+      final hBillboard = results[7] as List<Song>;
+
+      final benTop = results[8] as List<Song>;
+      final benArijit = results[9] as List<Song>;
+      final benAnupam = results[10] as List<Song>;
+
+      final loadedAlbums = results[11] as List<Album>;
+
+      // Populate Bollywood
+      if (bHits.isNotEmpty) {
+        _bollywoodSongs = bHits;
         _bollywoodPlaylists = [
           Playlist(
             id: 'bp_live_top',
             title: 'Bollywood Top 50',
-            description: 'Live trending chartbusters from JioSaavn & Spotify',
-            coverUrl: bWood.first.coverUrl,
-            songs: bWood,
+            description: "India's hottest romantic chartbusters and cinema anthems.",
+            coverUrl: bHits.first.coverUrl,
+            songs: bHits,
           ),
-          Playlist(
-            id: 'bp_live_romance',
-            title: 'Bollywood Romance',
-            description: 'Soulful love anthems & acoustic duets',
-            coverUrl: bWood.length > 1 ? bWood[1].coverUrl : bWood.first.coverUrl,
-            songs: bWood.reversed.toList(),
-          ),
-          ...MockMusicRepository.bollywoodPlaylists.skip(1),
+          if (bRomance.isNotEmpty)
+            Playlist(
+              id: 'bp_live_romance',
+              title: 'Bollywood Romance',
+              description: 'Soulful love songs, acoustic feelings and heartwarming duets.',
+              coverUrl: bRomance.first.coverUrl,
+              songs: bRomance,
+            ),
+          if (bArijit.isNotEmpty)
+            Playlist(
+              id: 'bp_live_arijit',
+              title: 'Arijit Singh Essentials',
+              description: 'The defining romantic voice of Bollywood, curated by Bitify.',
+              coverUrl: bArijit.first.coverUrl,
+              songs: bArijit,
+            ),
+          if (bParty.isNotEmpty)
+            Playlist(
+              id: 'bp_live_party',
+              title: 'Desi Party Hits',
+              description: 'High energy dance tracks, club bangers & Punjabi rhythm.',
+              coverUrl: bParty.first.coverUrl,
+              songs: bParty,
+            ),
         ];
       }
 
-      // 2. Fetch Hollywood
-      final hWood = await MusicApiService.fetchCategorySongs('The Weeknd Dua Lipa Pop Hits', limit: 20);
-      if (hWood.isNotEmpty) {
-        _hollywoodSongs = hWood;
+      // Populate Hollywood
+      if (hTop.isNotEmpty) {
+        _hollywoodSongs = hTop;
         _hollywoodPlaylists = [
           Playlist(
             id: 'hp_live_top',
             title: "Today's Top Hits",
-            description: 'Global pop & international hits on Spotify',
-            coverUrl: hWood.first.coverUrl,
-            songs: hWood,
+            description: 'The hottest global pop & international tracks on Spotify.',
+            coverUrl: hTop.first.coverUrl,
+            songs: hTop,
           ),
-          Playlist(
-            id: 'hp_live_synth',
-            title: 'Synthwave & Retro',
-            description: 'Late night cyberpunk rhythms & neon pop',
-            coverUrl: hWood.length > 1 ? hWood[1].coverUrl : hWood.first.coverUrl,
-            songs: hWood.reversed.toList(),
-          ),
-          ...MockMusicRepository.hollywoodPlaylists.skip(1),
+          if (hSynth.isNotEmpty)
+            Playlist(
+              id: 'hp_live_synth',
+              title: 'Synthwave & Retro',
+              description: 'Neon drenched synthwave, synthpop & late night R&B.',
+              coverUrl: hSynth.first.coverUrl,
+              songs: hSynth,
+            ),
+          if (hPop.isNotEmpty)
+            Playlist(
+              id: 'hp_live_pop',
+              title: 'Pop Rising Hollywood',
+              description: 'Global pop sensations, dance anthems & chartbusters.',
+              coverUrl: hPop.first.coverUrl,
+              songs: hPop,
+            ),
+          if (hBillboard.isNotEmpty)
+            Playlist(
+              id: 'hp_live_billboard',
+              title: 'Billboard Hot 100',
+              description: 'The definitive international weekly music chart.',
+              coverUrl: hBillboard.first.coverUrl,
+              songs: hBillboard,
+            ),
         ];
       }
 
-      // 3. Fetch Bengali
-      final bGali = await MusicApiService.fetchCategorySongs('Bengali Hits Arijit Singh', limit: 20);
-      if (bGali.isNotEmpty) {
-        _bengaliSongs = bGali;
+      // Populate Bengali
+      if (benTop.isNotEmpty) {
+        _bengaliSongs = benTop;
         _bengaliPlaylists = [
           Playlist(
             id: 'beng_live_top',
             title: 'Bangla Top Hits',
-            description: 'Trending Bengali melodies and film chartbusters',
-            coverUrl: bGali.first.coverUrl,
-            songs: bGali,
+            description: 'The biggest Bengali film and indie chartbusters.',
+            coverUrl: benTop.first.coverUrl,
+            songs: benTop,
           ),
-          Playlist(
-            id: 'beng_live_arijit',
-            title: 'Arijit Bengali Melodies',
-            description: 'Heartwarming acoustic Bengali songs',
-            coverUrl: bGali.length > 1 ? bGali[1].coverUrl : bGali.first.coverUrl,
-            songs: bGali.reversed.toList(),
-          ),
-          ...MockMusicRepository.bengaliPlaylists.skip(1),
+          if (benArijit.isNotEmpty)
+            Playlist(
+              id: 'beng_live_arijit',
+              title: 'Arijit Bengali Melodies',
+              description: 'Soulful Bengali movie hits and acoustic classics by Arijit Singh.',
+              coverUrl: benArijit.first.coverUrl,
+              songs: benArijit,
+            ),
+          if (benAnupam.isNotEmpty)
+            Playlist(
+              id: 'beng_live_anupam',
+              title: 'Anupam Roy Essentials',
+              description: 'Poetic lyrics, acoustic guitar and heart-touching stories.',
+              coverUrl: benAnupam.first.coverUrl,
+              songs: benAnupam,
+            ),
         ];
+      }
+
+      // Populate Albums
+      if (loadedAlbums.isNotEmpty) {
+        _trendingAlbums = loadedAlbums;
       }
 
       // Combine into _onlineTrending
@@ -233,6 +316,27 @@ class MusicPlayerState extends ChangeNotifier {
     }
   }
 
+  Future<List<Album>> _fetchCuratedAlbums() async {
+    try {
+      const albumIds = [
+        '38845390', // Brahmastra
+        '38682222', // Bhediya
+        '1031364',  // Jab We Met
+        '23241654', // Future Nostalgia
+        '19531208', // After Hours
+        '14791860', // Autograph
+      ];
+      final albums = await Future.wait(
+        albumIds.map((id) => MusicApiService.fetchAlbumById(id)),
+      );
+      final valid = albums.whereType<Album>().toList();
+      if (valid.isNotEmpty) return valid;
+    } catch (e) {
+      debugPrint('Error fetching curated albums: $e');
+    }
+    return MockMusicRepository.albums;
+  }
+
   // Getters
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -252,6 +356,7 @@ class MusicPlayerState extends ChangeNotifier {
   List<Playlist> get bollywoodPlaylists => List.unmodifiable(_bollywoodPlaylists);
   List<Playlist> get hollywoodPlaylists => List.unmodifiable(_hollywoodPlaylists);
   List<Playlist> get bengaliPlaylists => List.unmodifiable(_bengaliPlaylists);
+  List<Album> get trendingAlbums => List.unmodifiable(_trendingAlbums.isNotEmpty ? _trendingAlbums : MockMusicRepository.albums);
   bool get isLoadingOnline => _isLoadingOnline;
   List<double> get bandGains => List.unmodifiable(_bandGains);
   double get bassBoost => _bassBoost;
