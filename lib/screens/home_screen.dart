@@ -21,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   UpdateInfo? _updateInfo;
+  String _selectedCategory = 'All'; // 'All', 'Bollywood', 'Hollywood', 'Bengali'
 
   @override
   void initState() {
@@ -45,6 +46,23 @@ class _HomeScreenState extends State<HomeScreen> {
         final p = ThemeColorService().palette;
         final songs = widget.state.onlineTrending;
         final playlists = MockMusicRepository.playlists;
+
+        final List<Song> trendingFiltered;
+        if (_selectedCategory == 'Bollywood') {
+          trendingFiltered = widget.state.bollywoodSongs.isNotEmpty
+              ? widget.state.bollywoodSongs
+              : songs.where((s) => s.language.toLowerCase().contains('hindi')).toList();
+        } else if (_selectedCategory == 'Hollywood') {
+          trendingFiltered = widget.state.hollywoodSongs.isNotEmpty
+              ? widget.state.hollywoodSongs
+              : songs.where((s) => s.language.toLowerCase().contains('english')).toList();
+        } else if (_selectedCategory == 'Bengali') {
+          trendingFiltered = widget.state.bengaliSongs.isNotEmpty
+              ? widget.state.bengaliSongs
+              : songs.where((s) => s.language.toLowerCase().contains('bengali')).toList();
+        } else {
+          trendingFiltered = songs;
+        }
 
         return Scaffold(
           backgroundColor: p.background,
@@ -216,6 +234,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // 0. Language / Category Filter Chips (Spotify & JioSaavn style)
+                          _buildCategoryFilterBar(p),
+                          const SizedBox(height: 18),
+
                           // 1. SECTION: Trending (Circular elevated well buttons, exact match to reference screenshot)
                           _buildSectionHeader('Trending', p),
                           const SizedBox(height: 12),
@@ -224,32 +246,59 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                for (int i = 0; i < 3 && i < songs.length; i++)
-                                  _buildTrendingCircularButton(songs[i], p),
+                                for (int i = 0; i < 3 && i < (trendingFiltered.isNotEmpty ? trendingFiltered.length : songs.length); i++)
+                                  _buildTrendingCircularButton((trendingFiltered.isNotEmpty ? trendingFiltered : songs)[i], p),
                               ],
                             ),
                           ),
                           const SizedBox(height: 28),
 
-                          // 2. SECTION: Spotify Playlists (Curated with Spotify Algorithm Flow)
-                          _buildSectionHeader('Spotify Playlists', p, badge: 'SPOTIFY ALGORITHM'),
-                          const SizedBox(height: 14),
-                          SizedBox(
-                            height: 216,
-                            child: ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              scrollDirection: Axis.horizontal,
-                              itemCount: MockMusicRepository.spotifyPlaylists.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 14),
-                              itemBuilder: (context, i) {
-                                final sp = MockMusicRepository.spotifyPlaylists[i];
-                                return _buildSpotifyPlaylistCard(sp, p);
-                              },
+                          // 2. BOLLYWOOD PLAYLISTS (Bollywood Hits & Playlists)
+                          if (_selectedCategory == 'All' || _selectedCategory == 'Bollywood') ...[
+                            _buildSectionHeader('Bollywood Playlists', p, badge: 'JIOSAAVN & SPOTIFY'),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.bollywoodPlaylists.isNotEmpty
+                                  ? widget.state.bollywoodPlaylists
+                                  : MockMusicRepository.bollywoodPlaylists,
+                              p,
+                              badgeLabel: 'BOLLYWOOD',
+                              badgeColor: const Color(0xFFF59E0B),
                             ),
-                          ),
-                          const SizedBox(height: 28),
+                            const SizedBox(height: 28),
+                          ],
 
-                          // 3. SECTION: Popular Playlists (Tall squircle neumorphic cards, exact match to reference screenshot)
+                          // 3. HOLLYWOOD PLAYLISTS (Hollywood / Global Hits & Playlists)
+                          if (_selectedCategory == 'All' || _selectedCategory == 'Hollywood') ...[
+                            _buildSectionHeader('Hollywood Playlists', p, badge: 'SPOTIFY GLOBAL'),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.hollywoodPlaylists.isNotEmpty
+                                  ? widget.state.hollywoodPlaylists
+                                  : MockMusicRepository.hollywoodPlaylists,
+                              p,
+                              badgeLabel: 'SPOTIFY',
+                              badgeColor: const Color(0xFF1DB954),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 4. BENGALI PLAYLISTS (Bengali Hits & Playlists)
+                          if (_selectedCategory == 'All' || _selectedCategory == 'Bengali') ...[
+                            _buildSectionHeader('Bengali Playlists', p, badge: 'BANGLA HITS'),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.bengaliPlaylists.isNotEmpty
+                                  ? widget.state.bengaliPlaylists
+                                  : MockMusicRepository.bengaliPlaylists,
+                              p,
+                              badgeLabel: 'BENGALI',
+                              badgeColor: const Color(0xFF06B6D4),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 5. SECTION: Popular Playlists (Tall squircle neumorphic cards, exact match to reference screenshot)
                           _buildSectionHeader('Popular Playlists', p),
                           const SizedBox(height: 14),
                           Padding(
@@ -286,15 +335,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 28),
 
-                          // 4. SECTION: News / Top Tracks (Horizontal neumorphic pill cards, exact match to reference screenshot)
+                          // 6. SECTION: News / Top Tracks (Horizontal neumorphic pill cards, exact match to reference screenshot)
                           _buildSectionHeader('News', p),
                           const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Column(
                               children: [
-                                for (int i = 0; i < songs.length && i < 6; i++) ...[
-                                  _buildNewsTrackPill(songs[i], p),
+                                for (int i = 0; i < (trendingFiltered.isNotEmpty ? trendingFiltered.length : songs.length) && i < 6; i++) ...[
+                                  _buildNewsTrackPill((trendingFiltered.isNotEmpty ? trendingFiltered : songs)[i], p),
                                   if (i < 5) const SizedBox(height: 12),
                                 ],
                               ],
@@ -385,28 +434,111 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Spotify Curated Playlist Card with Spotify Algorithmic Flow
-  Widget _buildSpotifyPlaylistCard(Playlist playlist, SongColorPalette palette) {
+  /// Category Filter Bar (All, Bollywood, Hollywood, Bengali)
+  Widget _buildCategoryFilterBar(SongColorPalette p) {
+    const categories = ['All', 'Bollywood', 'Hollywood', 'Bengali'];
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final cat = categories[i];
+          final isSelected = _selectedCategory == cat;
+
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _selectedCategory = cat;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? p.primary.withOpacity(0.2) : p.surface,
+                borderRadius: BorderRadius.circular(19),
+                border: Border.all(
+                  color: isSelected ? p.primary : p.textSecondary.withOpacity(0.2),
+                  width: isSelected ? 1.5 : 1.0,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: p.glow.withOpacity(0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: p.shadowDark.withOpacity(0.4),
+                          blurRadius: 4,
+                          offset: const Offset(2, 2),
+                        ),
+                      ],
+              ),
+              child: Center(
+                child: Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected ? p.primary : p.textPrimary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Playlist Carousel Section for Bollywood, Hollywood, Bengali
+  Widget _buildPlaylistCarousel(
+    List<Playlist> playlistList,
+    SongColorPalette p, {
+    required String badgeLabel,
+    required Color badgeColor,
+  }) {
+    return SizedBox(
+      height: 216,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: playlistList.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final pl = playlistList[i];
+          return _buildSpotifyPlaylistCard(
+            pl,
+            p,
+            badgeLabel: badgeLabel,
+            badgeColor: badgeColor,
+          );
+        },
+      ),
+    );
+  }
+
+  /// Spotify / JioSaavn Curated Playlist Card with Spotify Algorithmic Flow
+  Widget _buildSpotifyPlaylistCard(
+    Playlist playlist,
+    SongColorPalette palette, {
+    String badgeLabel = 'SPOTIFY',
+    Color badgeColor = const Color(0xFF1DB954),
+  }) {
     return NeumorphicBox(
       width: 155,
       borderRadius: 22,
       padding: const EdgeInsets.all(10),
       onTap: () {
-        widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('Playing ${playlist.title} with Spotify Algorithm'),
-                ),
-              ],
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showPlaylistModal(context, playlist, palette);
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,18 +561,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1DB954),
+                    color: badgeColor,
                     borderRadius: BorderRadius.circular(6),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1DB954).withOpacity(0.5),
+                        color: badgeColor.withOpacity(0.5),
                         blurRadius: 6,
                       ),
                     ],
                   ),
-                  child: const Text(
-                    'SPOTIFY',
-                    style: TextStyle(
+                  child: Text(
+                    badgeLabel,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 8,
@@ -452,23 +584,44 @@ class _HomeScreenState extends State<HomeScreen> {
               Positioned(
                 bottom: 8,
                 right: 8,
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: palette.surface.withOpacity(0.9),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    size: 18,
-                    color: palette.primary,
+                child: GestureDetector(
+                  onTap: () {
+                    if (playlist.songs.isNotEmpty) {
+                      widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text('Playing ${playlist.title} with Spotify Algorithm'),
+                              ),
+                            ],
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: palette.surface.withOpacity(0.9),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      size: 18,
+                      color: palette.primary,
+                    ),
                   ),
                 ),
               ),
@@ -487,7 +640,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${playlist.songs.length} Tracks • Algorithm',
+            '${playlist.songs.length} Tracks • Explore',
             maxLines: 1,
             style: TextStyle(
               fontSize: 10,
@@ -497,6 +650,218 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Interactive Modal Bottom Sheet to Explore Playlist songs
+  void _showPlaylistModal(BuildContext context, Playlist playlist, SongColorPalette p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: BoxDecoration(
+            color: p.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: p.textSecondary.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Header with Cover Art, Title, Description
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      playlist.coverUrl,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(width: 72, height: 72, color: Colors.white12),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          playlist.title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: p.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          playlist.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${playlist.songs.length} Tracks • Spotify Algorithm Flow',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1DB954),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Action Button: Play All with Spotify Algorithm
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (playlist.songs.isNotEmpty) {
+                    widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
+                  }
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1DB954), Color(0xFF10B981)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1DB954).withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
+                      SizedBox(width: 6),
+                      Text(
+                        'PLAY WITH SPOTIFY ALGORITHM',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: p.textSecondary.withOpacity(0.2)),
+              const SizedBox(height: 8),
+              // Song list inside playlist
+              Expanded(
+                child: ListView.separated(
+                  itemCount: playlist.songs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, idx) {
+                    final song = playlist.songs[idx];
+                    final isCurrent = song.id == widget.state.currentSong?.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        widget.state.playSong(song, newQueue: playlist.songs);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isCurrent ? p.primary.withOpacity(0.15) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                song.coverUrl,
+                                width: 42,
+                                height: 42,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(width: 42, height: 42, color: Colors.white12),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                      color: isCurrent ? p.primary : p.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${song.artist} • ${song.language}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: p.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isCurrent && widget.state.isPlaying)
+                              const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18)
+                            else
+                              Text(
+                                song.formattedDuration,
+                                style: TextStyle(fontSize: 11, color: p.textSecondary),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -1,20 +1,50 @@
 import '../models/music_models.dart';
 
 class SpotifyAlgorithmService {
-  /// Normalize song language into a canonical code ('hindi' or 'english')
+  /// Normalize song language into a canonical code ('bengali', 'hindi', or 'english')
   static String normalizeLanguage(Song s) {
     final l = s.language.toLowerCase().trim();
+    if (l.contains('bengali') || l.contains('bangla')) {
+      return 'bengali';
+    }
+
+    final text = '${s.title} ${s.artist} ${s.album}'.toLowerCase();
+    const bengaliWords = [
+      'bengali',
+      'bangla',
+      'anupam',
+      'hemanta',
+      'rabindra',
+      'moushumi',
+      'jeevon',
+      'mon majhi',
+      'tumi robe',
+      'bhalolaage',
+      'parbona',
+      'ke tui bol',
+      'bodhuaa',
+      'jannat',
+      'tumi khushi',
+      'bhoomi',
+      'fossils',
+      'rupankar',
+      'nachiketa',
+      'silajit',
+      'shreya ghoshal bengali',
+      'jeet gannguli',
+    ];
+    if (bengaliWords.any((w) => text.contains(w))) {
+      return 'bengali';
+    }
+
     if (l.contains('hindi') ||
         l.contains('desi') ||
         l.contains('punjabi') ||
         l.contains('bollywood') ||
-        l.contains('bengali') ||
         l.contains('tamil') ||
         l.contains('telugu')) {
       return 'hindi';
     }
-    // Check title/artist/album text for Desi/Hindi keywords
-    final text = '${s.title} ${s.artist} ${s.album}'.toLowerCase();
     const desiWords = [
       'kesariya',
       'pardesiya',
@@ -47,6 +77,9 @@ class SpotifyAlgorithmService {
   /// Classifies a song into a discrete, cohesive genre cluster
   static String getPrimaryGenreCluster(Song s) {
     final lang = normalizeLanguage(s);
+    if (lang == 'bengali') {
+      return 'bengali_melodies';
+    }
     if (lang == 'hindi') {
       return 'bollywood_romantic';
     }

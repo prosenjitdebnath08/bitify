@@ -92,6 +92,16 @@ class MusicApiService {
           final rawLang = (item['language'] as String? ?? moreInfo['language'] as String? ?? '').trim();
           final rawGenre = (item['genre'] as String? ?? moreInfo['genre'] as String? ?? '').trim();
 
+          String assignedLang = rawLang.isNotEmpty ? rawLang : 'Hindi';
+          final checkLower = '$title $artist $album $query'.toLowerCase();
+          if (assignedLang.toLowerCase().contains('bengali') || checkLower.contains('bengali') || checkLower.contains('bangla')) {
+            assignedLang = 'Bengali';
+          } else if (assignedLang.toLowerCase().contains('english') || checkLower.contains('hollywood') || checkLower.contains('english')) {
+            assignedLang = 'English';
+          } else if (assignedLang.toLowerCase().contains('hindi') || checkLower.contains('bollywood')) {
+            assignedLang = 'Hindi';
+          }
+
           // Assign realistic platform source badge
           MusicSource source;
           final hash = (title + artist).hashCode.abs();
@@ -115,8 +125,8 @@ class MusicApiService {
               source: source,
               isLossless: true,
               isDolbyAtmos: (hash % 2 == 0),
-              language: rawLang.isNotEmpty ? rawLang : 'Hindi',
-              genre: rawGenre.isNotEmpty ? rawGenre : 'Bollywood / Romantic',
+              language: assignedLang,
+              genre: rawGenre.isNotEmpty ? rawGenre : (assignedLang == 'Bengali' ? 'Bengali / Melodies' : (assignedLang == 'English' ? 'Pop / Dance' : 'Bollywood / Romantic')),
               lyrics: _generateLyricsPreview(title, artist),
             ),
           );
@@ -201,6 +211,17 @@ class MusicApiService {
     }
 
     return trending;
+  }
+
+  /// Fetch songs tailored for specific category: 'bollywood', 'hollywood', or 'bengali'
+  static Future<List<Song>> fetchCategorySongs(String categoryQuery, {int limit = 25}) async {
+    try {
+      final songs = await searchOnline(categoryQuery, limit: limit);
+      if (songs.isNotEmpty) return songs;
+    } catch (e) {
+      debugPrint('Error fetching category songs ($categoryQuery): $e');
+    }
+    return [];
   }
 
   static List<LyricLine> _generateLyricsPreview(String title, String artist) {

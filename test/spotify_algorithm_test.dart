@@ -8,13 +8,17 @@ void main() {
     final starboy = allSongs.firstWhere((s) => s.id == 's1'); // English Synthwave
     final kesariya = allSongs.firstWhere((s) => s.id == 's3'); // Hindi Bollywood
     final levitating = allSongs.firstWhere((s) => s.id == 's4'); // English Pop
+    final bhalolaage = allSongs.firstWhere((s) => s.id == 's13'); // Bengali Melodies
 
     test('Strict Language Separation', () {
       expect(SpotifyAlgorithmService.normalizeLanguage(starboy), 'english');
       expect(SpotifyAlgorithmService.normalizeLanguage(kesariya), 'hindi');
       expect(SpotifyAlgorithmService.normalizeLanguage(levitating), 'english');
+      expect(SpotifyAlgorithmService.normalizeLanguage(bhalolaage), 'bengali');
 
       expect(SpotifyAlgorithmService.isSameLanguage(starboy, kesariya), isFalse);
+      expect(SpotifyAlgorithmService.isSameLanguage(starboy, bhalolaage), isFalse);
+      expect(SpotifyAlgorithmService.isSameLanguage(kesariya, bhalolaage), isFalse);
       expect(SpotifyAlgorithmService.isSameLanguage(starboy, levitating), isTrue);
     });
 
@@ -22,9 +26,11 @@ void main() {
       expect(SpotifyAlgorithmService.getPrimaryGenreCluster(starboy), 'synthwave_electronic');
       expect(SpotifyAlgorithmService.getPrimaryGenreCluster(kesariya), 'bollywood_romantic');
       expect(SpotifyAlgorithmService.getPrimaryGenreCluster(levitating), 'pop_dance');
+      expect(SpotifyAlgorithmService.getPrimaryGenreCluster(bhalolaage), 'bengali_melodies');
 
       expect(SpotifyAlgorithmService.isSameGenreCluster(starboy, levitating), isFalse);
       expect(SpotifyAlgorithmService.isSameGenreCluster(starboy, kesariya), isFalse);
+      expect(SpotifyAlgorithmService.isSameGenreCluster(kesariya, bhalolaage), isFalse);
     });
 
     test('Algorithmic Queue strictly contains only same language and same genre', () {

@@ -34,6 +34,14 @@ class MusicPlayerState extends ChangeNotifier {
   // Liked songs set
   final Set<String> _likedSongIds = {'s1', 's2', 's4', 's6'};
 
+  // Categorized Catalogs and Playlists (Bollywood, Hollywood, Bengali)
+  List<Song> _bollywoodSongs = [];
+  List<Song> _hollywoodSongs = [];
+  List<Song> _bengaliSongs = [];
+  List<Playlist> _bollywoodPlaylists = [];
+  List<Playlist> _hollywoodPlaylists = [];
+  List<Playlist> _bengaliPlaylists = [];
+
   // Equalizer
   final List<String> eqFrequencies = [
     '60Hz', '170Hz', '310Hz', '600Hz', '1kHz',
@@ -60,6 +68,14 @@ class MusicPlayerState extends ChangeNotifier {
 
   MusicPlayerState() {
     _queue = List.from(MockMusicRepository.allSongs);
+    _bollywoodPlaylists = List.from(MockMusicRepository.bollywoodPlaylists);
+    _hollywoodPlaylists = List.from(MockMusicRepository.hollywoodPlaylists);
+    _bengaliPlaylists = List.from(MockMusicRepository.bengaliPlaylists);
+
+    _bollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'hindi').toList();
+    _hollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'english').toList();
+    _bengaliSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'bengali').toList();
+
     if (_queue.isNotEmpty) {
       _currentSong = _queue.first;
       _durationSeconds = _currentSong!.durationSeconds;
@@ -109,13 +125,88 @@ class MusicPlayerState extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final fetched = await MusicApiService.fetchTrendingSongs();
-      if (fetched.isNotEmpty) {
-        _onlineTrending = fetched;
+      // 1. Fetch Bollywood
+      final bWood = await MusicApiService.fetchCategorySongs('Bollywood Hits', limit: 20);
+      if (bWood.isNotEmpty) {
+        _bollywoodSongs = bWood;
+        _bollywoodPlaylists = [
+          Playlist(
+            id: 'bp_live_top',
+            title: 'Bollywood Top 50',
+            description: 'Live trending chartbusters from JioSaavn & Spotify',
+            coverUrl: bWood.first.coverUrl,
+            songs: bWood,
+          ),
+          Playlist(
+            id: 'bp_live_romance',
+            title: 'Bollywood Romance',
+            description: 'Soulful love anthems & acoustic duets',
+            coverUrl: bWood.length > 1 ? bWood[1].coverUrl : bWood.first.coverUrl,
+            songs: bWood.reversed.toList(),
+          ),
+          ...MockMusicRepository.bollywoodPlaylists.skip(1),
+        ];
+      }
+
+      // 2. Fetch Hollywood
+      final hWood = await MusicApiService.fetchCategorySongs('The Weeknd Dua Lipa Pop Hits', limit: 20);
+      if (hWood.isNotEmpty) {
+        _hollywoodSongs = hWood;
+        _hollywoodPlaylists = [
+          Playlist(
+            id: 'hp_live_top',
+            title: "Today's Top Hits",
+            description: 'Global pop & international hits on Spotify',
+            coverUrl: hWood.first.coverUrl,
+            songs: hWood,
+          ),
+          Playlist(
+            id: 'hp_live_synth',
+            title: 'Synthwave & Retro',
+            description: 'Late night cyberpunk rhythms & neon pop',
+            coverUrl: hWood.length > 1 ? hWood[1].coverUrl : hWood.first.coverUrl,
+            songs: hWood.reversed.toList(),
+          ),
+          ...MockMusicRepository.hollywoodPlaylists.skip(1),
+        ];
+      }
+
+      // 3. Fetch Bengali
+      final bGali = await MusicApiService.fetchCategorySongs('Bengali Hits Arijit Singh', limit: 20);
+      if (bGali.isNotEmpty) {
+        _bengaliSongs = bGali;
+        _bengaliPlaylists = [
+          Playlist(
+            id: 'beng_live_top',
+            title: 'Bangla Top Hits',
+            description: 'Trending Bengali melodies and film chartbusters',
+            coverUrl: bGali.first.coverUrl,
+            songs: bGali,
+          ),
+          Playlist(
+            id: 'beng_live_arijit',
+            title: 'Arijit Bengali Melodies',
+            description: 'Heartwarming acoustic Bengali songs',
+            coverUrl: bGali.length > 1 ? bGali[1].coverUrl : bGali.first.coverUrl,
+            songs: bGali.reversed.toList(),
+          ),
+          ...MockMusicRepository.bengaliPlaylists.skip(1),
+        ];
+      }
+
+      // Combine into _onlineTrending
+      final combined = <Song>[];
+      for (final s in [..._bollywoodSongs, ..._hollywoodSongs, ..._bengaliSongs]) {
+        if (!combined.any((c) => c.id == s.id)) {
+          combined.add(s);
+        }
+      }
+      if (combined.isNotEmpty) {
+        _onlineTrending = combined;
         final cur = _currentSong;
         if (cur != null) {
           final existingIds = _queue.map((s) => s.id).toSet();
-          for (final s in fetched) {
+          for (final s in combined) {
             if (!existingIds.contains(s.id) &&
                 SpotifyAlgorithmService.isSameLanguage(s, cur) &&
                 SpotifyAlgorithmService.isSameGenreCluster(s, cur)) {
@@ -145,6 +236,12 @@ class MusicPlayerState extends ChangeNotifier {
   List<Song> get queue => List.unmodifiable(_queue);
   List<Song> get history => List.unmodifiable(_history);
   List<Song> get onlineTrending => List.unmodifiable(_onlineTrending.isNotEmpty ? _onlineTrending : _queue);
+  List<Song> get bollywoodSongs => List.unmodifiable(_bollywoodSongs);
+  List<Song> get hollywoodSongs => List.unmodifiable(_hollywoodSongs);
+  List<Song> get bengaliSongs => List.unmodifiable(_bengaliSongs);
+  List<Playlist> get bollywoodPlaylists => List.unmodifiable(_bollywoodPlaylists);
+  List<Playlist> get hollywoodPlaylists => List.unmodifiable(_hollywoodPlaylists);
+  List<Playlist> get bengaliPlaylists => List.unmodifiable(_bengaliPlaylists);
   bool get isLoadingOnline => _isLoadingOnline;
   List<double> get bandGains => List.unmodifiable(_bandGains);
   double get bassBoost => _bassBoost;
