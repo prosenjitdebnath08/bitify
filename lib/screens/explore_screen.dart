@@ -20,6 +20,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All'; // 'All', 'Bollywood', 'Hollywood', 'Bengali', 'Pop', 'Synthwave'
   List<Song> _searchResults = [];
+  List<Playlist> _searchPlaylists = [];
   bool _isSearching = false;
   String _activeSearchQuery = '';
 
@@ -34,6 +35,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (clean.isEmpty) {
       setState(() {
         _searchResults = [];
+        _searchPlaylists = [];
         _isSearching = false;
         _activeSearchQuery = '';
       });
@@ -47,9 +49,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     try {
       final results = await MusicApiService.searchOnline(clean, limit: 30);
+      final playlists = await MusicApiService.searchMultiSourcePlaylists(clean, results);
       if (mounted) {
         setState(() {
           _searchResults = results;
+          _searchPlaylists = playlists;
           _isSearching = false;
         });
       }
@@ -144,6 +148,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } else {
       setState(() {
         _searchResults = [];
+        _searchPlaylists = [];
         _activeSearchQuery = '';
         _searchController.clear();
       });
@@ -152,11 +157,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allSongs = widget.state.onlineTrending.isNotEmpty
-        ? widget.state.onlineTrending
-        : MockMusicRepository.allSongs;
     final artists = MockMusicRepository.artists;
-    final albums = MockMusicRepository.albums;
 
     return AnimatedBuilder(
       animation: Listenable.merge([widget.state, ThemeColorService()]),
@@ -414,9 +415,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           );
                         }(),
 
-                        // 2. MATCHING PLAYLISTS SECTION
+                        // 2. MATCHING ARTIST PLAYLISTS SECTION
                         () {
-                          final searchPlaylists = _generatePlaylistsFromResults(_activeSearchQuery, _searchResults);
+                          final searchPlaylists = _searchPlaylists.isNotEmpty
+                              ? _searchPlaylists
+                              : _generatePlaylistsFromResults(_activeSearchQuery, _searchResults);
                           if (searchPlaylists.isEmpty) return const SizedBox.shrink();
 
                           return Column(
@@ -426,7 +429,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    'Playlists for "$_activeSearchQuery"',
+                                    'Artist Playlists & Mixes',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,
@@ -434,11 +437,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     ),
                                   ),
                                   Text(
-                                    'Continuous Play',
+                                    'Spotify • JioSaavn • YouTube',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF1DB954),
+                                      color: p.primary,
                                     ),
                                   ),
                                 ],
@@ -804,105 +807,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             },
                           ),
                         ),
-                        const SizedBox(height: 24),
-
-                        // 4. Albums & EPs
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'Trending Albums & EPs',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: p.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 170,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: albums.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 14),
-                            itemBuilder: (context, i) {
-                              final album = albums[i];
-                              return GestureDetector(
-                                onTap: () {
-                                  if (album.songs.isNotEmpty) {
-                                    widget.state.playSong(album.songs.first, newQueue: album.songs);
-                                  }
-                                },
-                                child: SizedBox(
-                                  width: 130,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Image.network(
-                                          album.coverUrl,
-                                          width: 130,
-                                          height: 120,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        album.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: p.textPrimary,
-                                        ),
-                                      ),
-                                      Text(
-                                        album.artist,
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: p.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // 5. Viral Radar Tracks
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Text(
-                            'Explore Recommendations',
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: p.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...allSongs.take(6).map((song) {
-                          final isCurrent = song.id == widget.state.currentSong?.id;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: SongTile(
-                              song: song,
-                              isCurrent: isCurrent,
-                              isPlaying: widget.state.isPlaying && isCurrent,
-                              isLiked: widget.state.isSongLiked(song.id),
-                              onTap: () => widget.state.playSong(song),
-                              onLikeTap: () => widget.state.toggleLike(song.id),
-                            ),
-                          );
-                        }),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),

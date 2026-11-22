@@ -284,7 +284,7 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Playlists & Mixes',
+                    'Artist Playlists & Mixes',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -300,7 +300,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       border: Border.all(color: p.primary.withOpacity(0.4)),
                     ),
                     child: Text(
-                      '${filteredPlaylists.length} Available',
+                      'Spotify • JioSaavn • YouTube',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,

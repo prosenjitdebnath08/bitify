@@ -451,65 +451,110 @@ class MusicApiService {
     return playlists;
   }
 
-  /// Search playlists & albums across YouTube Music, Spotify & JioSaavn
+  /// Search all artist-related playlists across Spotify, JioSaavn & YouTube Music
   static Future<List<Playlist>> searchMultiSourcePlaylists(String query, List<Song> matchingSongs) async {
     final List<Playlist> playlists = [];
+    final Set<String> seenIds = {};
 
-    // 1. Fetch real JioSaavn playlists matching query
-    try {
-      final jsPlaylists = await searchJioSaavnPlaylists(query, limit: 3);
-      playlists.addAll(jsPlaylists);
-    } catch (e) {
-      debugPrint('Error adding JioSaavn playlists: $e');
+    // 1. Identify primary artist(s) from matching songs or the query itself
+    String primaryArtist = query.trim();
+    if (matchingSongs.isNotEmpty) {
+      final songArtist = matchingSongs.first.artist;
+      final extracted = songArtist.split(RegExp(r'[,&•/|]')).first.trim();
+      if (extracted.isNotEmpty) {
+        primaryArtist = extracted;
+      }
     }
 
-    // 2. Fetch real Album matching query
+    // 2. Fetch official JioSaavn playlists for the artist
     try {
-      final album = await searchAndFetchAlbum(query);
-      if (album != null && album.songs.isNotEmpty) {
+      final jsPlaylists = await searchJioSaavnPlaylists(primaryArtist, limit: 4);
+      for (final pl in jsPlaylists) {
+        if (!seenIds.contains(pl.id)) {
+          seenIds.add(pl.id);
+          playlists.add(pl);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error searching artist JioSaavn playlists: $e');
+    }
+
+    // 3. If query differs from primaryArtist, search for query-specific JioSaavn playlists as well
+    if (query.trim().toLowerCase() != primaryArtist.toLowerCase()) {
+      try {
+        final queryPlaylists = await searchJioSaavnPlaylists(query.trim(), limit: 2);
+        for (final pl in queryPlaylists) {
+          if (!seenIds.contains(pl.id)) {
+            seenIds.add(pl.id);
+            playlists.add(pl);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error searching query JioSaavn playlists: $e');
+      }
+    }
+
+    // 4. Generate Spotify Official Artist Playlists
+    if (matchingSongs.isNotEmpty) {
+      final artistSongs = matchingSongs.where((s) {
+        return s.artist.toLowerCase().contains(primaryArtist.toLowerCase());
+      }).toList();
+      final pool = artistSongs.isNotEmpty ? artistSongs : matchingSongs;
+
+      // a) "This Is [Artist]" (Spotify Official flagship format)
+      playlists.add(
+        Playlist(
+          id: 'sp_this_is_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
+          title: 'This Is $primaryArtist',
+          description: '${pool.length} Tracks • Spotify Official Artist Playlist',
+          coverUrl: pool.first.coverUrl,
+          songs: pool,
+          source: MusicSource.spotify,
+        ),
+      );
+
+      // b) "[Artist] Radio" (Spotify Radio Flow)
+      if (pool.length > 2) {
         playlists.add(
           Playlist(
-            id: 'alb_${album.id}',
-            title: album.title,
-            description: '${album.artist} • ${album.songs.length} Tracks • Complete Album',
-            coverUrl: album.coverUrl,
-            songs: album.songs,
-            source: MusicSource.jiosaavn,
+            id: 'sp_radio_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
+            title: '$primaryArtist Radio',
+            description: '${pool.length} Tracks • Spotify Algorithmic Radio Flow',
+            coverUrl: pool.length > 1 ? pool[1].coverUrl : pool.first.coverUrl,
+            songs: pool.reversed.toList(),
+            source: MusicSource.spotify,
           ),
         );
       }
-    } catch (e) {
-      debugPrint('Error adding album to search playlists: $e');
-    }
 
-    // 3. Create YouTube Music Mix from matching songs
-    if (matchingSongs.isNotEmpty) {
-      final ytSongs = matchingSongs.where((s) => s.source == MusicSource.youtube).toList();
-      final songsForYt = ytSongs.isNotEmpty ? ytSongs : matchingSongs.take(15).toList();
+      // 5. Generate YouTube Music Official Artist Mixes
+      // a) "[Artist] • YouTube Music Mix"
+      final ytSongs = pool.where((s) => s.source == MusicSource.youtube).toList();
+      final poolYt = ytSongs.isNotEmpty ? ytSongs : pool;
       playlists.add(
         Playlist(
-          id: 'pl_yt_${query.toLowerCase().replaceAll(' ', '_')}',
-          title: '$query • YouTube Mix',
-          description: '${songsForYt.length} Tracks • Curated YouTube Music Mix',
-          coverUrl: songsForYt.first.coverUrl,
-          songs: songsForYt,
+          id: 'yt_mix_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
+          title: '$primaryArtist • YouTube Mix',
+          description: '${poolYt.length} Tracks • Curated YouTube Music Artist Mix',
+          coverUrl: poolYt.first.coverUrl,
+          songs: poolYt,
           source: MusicSource.youtube,
         ),
       );
 
-      // 4. Create Spotify Essentials Playlist from matching songs
-      final spSongs = matchingSongs.where((s) => s.source == MusicSource.spotify).toList();
-      final songsForSp = spSongs.isNotEmpty ? spSongs : matchingSongs.reversed.take(15).toList();
-      playlists.add(
-        Playlist(
-          id: 'pl_sp_${query.toLowerCase().replaceAll(' ', '_')}',
-          title: 'This Is $query',
-          description: '${songsForSp.length} Tracks • Spotify Curated Flow',
-          coverUrl: songsForSp.first.coverUrl,
-          songs: songsForSp,
-          source: MusicSource.spotify,
-        ),
-      );
+      // b) "[Artist] • Non-Stop Chartbusters"
+      if (pool.length > 3) {
+        playlists.add(
+          Playlist(
+            id: 'yt_hits_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
+            title: '$primaryArtist • Non-Stop Hits',
+            description: '${pool.length} Tracks • YouTube Music Chartbusters',
+            coverUrl: pool.last.coverUrl,
+            songs: pool,
+            source: MusicSource.youtube,
+          ),
+        );
+      }
     }
 
     return playlists;
