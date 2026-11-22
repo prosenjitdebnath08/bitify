@@ -60,6 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
           trendingFiltered = widget.state.bengaliSongs.isNotEmpty
               ? widget.state.bengaliSongs
               : songs.where((s) => s.language.toLowerCase().contains('bengali')).toList();
+        } else if (_selectedCategory == 'Spotify') {
+          trendingFiltered = songs.where((s) => s.source == MusicSource.spotify).toList();
+        } else if (_selectedCategory == 'YouTube Music') {
+          trendingFiltered = songs.where((s) => s.source == MusicSource.youtube).toList();
+        } else if (_selectedCategory == 'JioSaavn') {
+          trendingFiltered = songs.where((s) => s.source == MusicSource.jiosaavn).toList();
         } else {
           trendingFiltered = songs;
         }
@@ -253,7 +259,46 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 28),
 
-                          // 2. BOLLYWOOD PLAYLISTS (Bollywood Hits & Playlists)
+                          // 2. SPOTIFY FEATURED PLAYLISTS
+                          if (_selectedCategory == 'All' || _selectedCategory == 'Spotify') ...[
+                            _buildSectionHeader('Spotify Featured Playlists', p, badge: 'SPOTIFY OFFICIAL', badgeColor: const Color(0xFF1DB954)),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.spotifyPlaylists,
+                              p,
+                              badgeLabel: 'SPOTIFY',
+                              badgeColor: const Color(0xFF1DB954),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 3. YOUTUBE MUSIC MIXES
+                          if (_selectedCategory == 'All' || _selectedCategory == 'YouTube Music') ...[
+                            _buildSectionHeader('YouTube Music Mixes', p, badge: 'TRENDING MIXES', badgeColor: const Color(0xFFEF4444)),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.youtubePlaylists,
+                              p,
+                              badgeLabel: 'YOUTUBE MUSIC',
+                              badgeColor: const Color(0xFFEF4444),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 4. JIOSAAVN CURATED PLAYLISTS
+                          if (_selectedCategory == 'All' || _selectedCategory == 'JioSaavn') ...[
+                            _buildSectionHeader('JioSaavn Curated Playlists', p, badge: 'CHARTS & TOP 50', badgeColor: const Color(0xFF06B6D4)),
+                            const SizedBox(height: 14),
+                            _buildPlaylistCarousel(
+                              widget.state.jiosaavnPlaylists,
+                              p,
+                              badgeLabel: 'JIOSAAVN',
+                              badgeColor: const Color(0xFF06B6D4),
+                            ),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 5. BOLLYWOOD PLAYLISTS (Bollywood Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Bollywood') ...[
                             _buildSectionHeader('Bollywood Playlists', p, badge: 'JIOSAAVN & SPOTIFY', badgeColor: const Color(0xFFF59E0B)),
                             const SizedBox(height: 14),
@@ -266,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 28),
                           ],
 
-                          // 3. HOLLYWOOD PLAYLISTS (Hollywood / Global Hits & Playlists)
+                          // 6. HOLLYWOOD PLAYLISTS (Hollywood / Global Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Hollywood') ...[
                             _buildSectionHeader('Hollywood Playlists', p, badge: 'SPOTIFY GLOBAL', badgeColor: const Color(0xFF1DB954)),
                             const SizedBox(height: 14),
@@ -279,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 28),
                           ],
 
-                          // 4. BENGALI PLAYLISTS (Bengali Hits & Playlists)
+                          // 7. BENGALI PLAYLISTS (Bengali Hits & Playlists)
                           if (_selectedCategory == 'All' || _selectedCategory == 'Bengali') ...[
                             _buildSectionHeader('Bengali Playlists', p, badge: 'BANGLA HITS', badgeColor: const Color(0xFF06B6D4)),
                             const SizedBox(height: 14),
@@ -292,7 +337,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 28),
                           ],
 
-                          // 5. POPULAR PLAYLISTS
+                          // 8. ENDLESS MULTI-PLATFORM RECOMMENDATIONS FEED
+                          if (_selectedCategory == 'All') ...[
+                            _buildSectionHeader('Endless Recommendations', p, badge: 'MULTI-PLATFORM FLOW', badgeColor: p.primary),
+                            const SizedBox(height: 14),
+                            _buildEndlessRecommendationsFeed(widget.state.endlessPlaylists, p),
+                            const SizedBox(height: 28),
+                          ],
+
+                          // 9. POPULAR PLAYLISTS
                           _buildSectionHeader('Popular Playlists', p),
                           const SizedBox(height: 14),
                           Padding(
@@ -307,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
                                       palette: p,
                                       onTap: () {
-                                        widget.state.playWithSpotifyAlgorithm(playlists[0].songs.first, contextPlaylist: playlists[0].songs);
+                                        widget.state.playPlaylist(playlists[0]);
                                       },
                                     ),
                                   ),
@@ -320,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
                                       palette: p,
                                       onTap: () {
-                                        widget.state.playWithSpotifyAlgorithm(playlists[1].songs.first, contextPlaylist: playlists[1].songs);
+                                        widget.state.playPlaylist(playlists[1]);
                                       },
                                     ),
                                   ),
@@ -340,52 +393,69 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Section Header with title and optional badge
-  /// Section Header with title and optional badge (no non-functional 3 dots)
-  Widget _buildSectionHeader(String title, SongColorPalette p, {String? badge, Color badgeColor = const Color(0xFF1DB954)}) {
+  /// Section Header with title, optional badge, and functional 3-dots options
+  Widget _buildSectionHeader(
+    String title,
+    SongColorPalette p, {
+    String? badge,
+    Color badgeColor = const Color(0xFF1DB954),
+    VoidCallback? onMoreTap,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: p.textPrimary,
-              letterSpacing: -0.2,
-            ),
-          ),
-          if (badge != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-              decoration: BoxDecoration(
-                color: badgeColor.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: badgeColor.withOpacity(0.5),
-                  width: 1,
+          Row(
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: p.textPrimary,
+                  letterSpacing: -0.2,
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.graphic_eq_rounded, size: 10, color: badgeColor),
-                  const SizedBox(width: 3),
-                  Text(
-                    badge,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: badgeColor,
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: badgeColor.withOpacity(0.5),
+                      width: 1,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.graphic_eq_rounded, size: 10, color: badgeColor),
+                      const SizedBox(width: 3),
+                      Text(
+                        badge,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: badgeColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          NeumorphicBox(
+            width: 34,
+            height: 22,
+            borderRadius: 11,
+            onTap: onMoreTap ?? () => _showQuickSourceMenu(context, title, p),
+            child: Icon(Icons.more_horiz_rounded, size: 16, color: p.textSecondary),
+          ),
         ],
       ),
     );
@@ -418,14 +488,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Category Filter Bar (All, Bollywood, Hollywood, Bengali)
+  /// Category Filter Bar (All, Spotify, YouTube Music, JioSaavn, Bollywood, Hollywood, Bengali)
   Widget _buildCategoryFilterBar(SongColorPalette p) {
-    const categories = ['All', 'Bollywood', 'Hollywood', 'Bengali'];
+    const categories = ['All', 'Spotify', 'YouTube Music', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'];
 
     return SizedBox(
       height: 38,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
@@ -441,6 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected ? p.primary.withOpacity(0.2) : p.surface,
@@ -483,7 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Playlist Carousel Section for Bollywood, Hollywood, Bengali
+  /// Playlist Carousel Section with smooth bouncing physics
   Widget _buildPlaylistCarousel(
     List<Playlist> playlistList,
     SongColorPalette p, {
@@ -494,6 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 216,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const BouncingScrollPhysics(),
         scrollDirection: Axis.horizontal,
         itemCount: playlistList.length,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
@@ -510,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Spotify / JioSaavn Curated Playlist Card with Spotify Algorithmic Flow
+  /// Curated Playlist Card with direct play, modal inspection, and 3-dots options
   Widget _buildSpotifyPlaylistCard(
     Playlist playlist,
     SongColorPalette palette, {
@@ -565,13 +638,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+              // Functional 3-dots options on the playlist card
+              Positioned(
+                top: 6,
+                right: 6,
+                child: GestureDetector(
+                  onTap: () => _showPlaylistActionsBottomSheet(context, playlist, palette),
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.6),
+                    ),
+                    child: const Icon(
+                      Icons.more_vert_rounded,
+                      size: 15,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
               Positioned(
                 bottom: 8,
                 right: 8,
                 child: GestureDetector(
                   onTap: () {
                     if (playlist.songs.isNotEmpty) {
-                      widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
+                      widget.state.playPlaylist(playlist);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Row(
@@ -624,7 +718,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 2),
           Text(
-            '${playlist.songs.length} Tracks • Explore',
+            '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
             maxLines: 1,
             style: TextStyle(
               fontSize: 10,
@@ -633,6 +727,224 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Endless multi-platform recommendations feed (horizontal grid/carousel)
+  Widget _buildEndlessRecommendationsFeed(List<Playlist> endlessList, SongColorPalette p) {
+    return SizedBox(
+      height: 216,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        physics: const BouncingScrollPhysics(),
+        scrollDirection: Axis.horizontal,
+        itemCount: endlessList.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, i) {
+          final pl = endlessList[i];
+          final badgeLabel = pl.source == MusicSource.youtube
+              ? 'YOUTUBE'
+              : (pl.source == MusicSource.jiosaavn ? 'JIOSAAVN' : 'SPOTIFY');
+          final badgeColor = pl.source == MusicSource.youtube
+              ? const Color(0xFFEF4444)
+              : (pl.source == MusicSource.jiosaavn ? const Color(0xFF06B6D4) : const Color(0xFF1DB954));
+
+          return _buildSpotifyPlaylistCard(
+            pl,
+            p,
+            badgeLabel: badgeLabel,
+            badgeColor: badgeColor,
+          );
+        },
+      ),
+    );
+  }
+
+  /// Functional 3-dots action sheet for any playlist
+  void _showPlaylistActionsBottomSheet(BuildContext context, Playlist playlist, SongColorPalette p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        decoration: BoxDecoration(
+          color: p.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 30,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: p.textSecondary.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    playlist.coverUrl,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildImageFallback(width: 48, height: 48, borderRadius: 10, palette: p),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        playlist.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: p.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
+                        style: TextStyle(fontSize: 11, color: p.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(color: p.textSecondary.withOpacity(0.2)),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.play_arrow_rounded, color: p.primary),
+              title: Text('Play Playlist', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (playlist.songs.isNotEmpty) {
+                  widget.state.playPlaylist(playlist);
+                }
+              },
+            ),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.shuffle_rounded, color: p.textPrimary),
+              title: Text('Shuffle Play', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (playlist.songs.isNotEmpty) {
+                  final shuffled = List<Song>.from(playlist.songs)..shuffle();
+                  widget.state.playSong(shuffled.first, newQueue: shuffled);
+                }
+              },
+            ),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.queue_music_rounded, color: p.textPrimary),
+              title: Text('Add Tracks to Queue', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                for (final s in playlist.songs) {
+                  widget.state.addToQueue(s);
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Added ${playlist.songs.length} tracks to queue')),
+                );
+              },
+            ),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.playlist_play_rounded, color: p.textPrimary),
+              title: Text('View Full Tracklist', style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showPlaylistModal(context, playlist, p);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Quick source/category filter sheet triggered by section header 3 dots
+  void _showQuickSourceMenu(BuildContext context, String sectionTitle, SongColorPalette p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        decoration: BoxDecoration(
+          color: p.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: p.textSecondary.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Filter by Platform & Genre',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: p.textPrimary),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['All', 'Spotify', 'YouTube Music', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'].map((c) {
+                final isCur = _selectedCategory == c;
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _selectedCategory = c;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isCur ? p.primary : p.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isCur ? p.primary : Colors.white12),
+                    ),
+                    child: Text(
+                      c,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isCur ? FontWeight.w800 : FontWeight.w600,
+                        color: isCur ? Colors.white : p.textPrimary,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }

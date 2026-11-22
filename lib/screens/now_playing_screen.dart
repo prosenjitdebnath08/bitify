@@ -152,7 +152,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '256kbps Master',
+                                  song.source.displayName.toUpperCase(),
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
@@ -478,7 +478,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
     return NeumorphicBox(
       width: 54,
-      height: 425,
+      height: 480,
       borderRadius: 27,
       hasGlow: true,
       glowColor: p.glow.withOpacity(0.3),
@@ -608,18 +608,376 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                 );
               } else if (isDownloading) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Downloading in 256kbps Master Audio...')),
+                  const SnackBar(content: Text('Downloading in Master Audio...')),
                 );
               } else {
                 DownloadService().startDownload(song);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Downloading ${song.title} (256kbps)...'),
+                    content: Text('Downloading ${song.title}...'),
                     duration: const Duration(seconds: 2),
                   ),
                 );
               }
             },
+          ),
+
+          // 8. Add to Playlist / Create Playlist Button
+          IconButton(
+            icon: Icon(
+              Icons.playlist_add_rounded,
+              size: 23,
+              color: p.textSecondary,
+            ),
+            tooltip: 'Add to Playlist',
+            onPressed: () => _showAddToPlaylistBottomSheet(context, song, p),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Interactive Modal Bottom Sheet to create or add current track to playlist
+  void _showAddToPlaylistBottomSheet(BuildContext context, Song song, SongColorPalette p) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (bottomSheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            final allPls = widget.state.allPlaylists;
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.62,
+              decoration: BoxDecoration(
+                color: p.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 30,
+                    offset: const Offset(0, -6),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Drag Handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: p.textSecondary.withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Add to Playlist',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: p.textPrimary,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${song.title} • ${song.artist}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: p.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        NeumorphicBox(
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          onTap: () => Navigator.pop(bottomSheetCtx),
+                          child: Icon(Icons.close_rounded, size: 18, color: p.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // "+ Create New Playlist" Action Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: GestureDetector(
+                      onTap: () => _showCreatePlaylistInlineDialog(context, song, p, () {
+                        setModalState(() {});
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [p.primary.withOpacity(0.22), p.primary.withOpacity(0.08)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: p.primary.withOpacity(0.4), width: 1.2),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: p.primary,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: p.glow.withOpacity(0.5),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Create New Playlist',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: p.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Save "${song.title}" to a new collection',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: p.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: p.primary),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+                    child: Row(
+                      children: [
+                        Text(
+                          'YOUR PLAYLISTS',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.0,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Playlists List
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
+                      itemCount: allPls.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final pl = allPls[idx];
+                        final inPlaylist = widget.state.isSongInPlaylist(pl.id, song.id);
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (inPlaylist) {
+                              widget.state.removeSongFromPlaylist(pl.id, song.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Removed "${song.title}" from ${pl.title}'),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            } else {
+                              widget.state.addSongToPlaylist(pl.id, song);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Added "${song.title}" to ${pl.title}'),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                            setModalState(() {});
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: inPlaylist ? p.primary.withOpacity(0.12) : p.surface.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: inPlaylist ? p.primary.withOpacity(0.4) : Colors.white.withOpacity(0.04),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    pl.coverUrl,
+                                    width: 44,
+                                    height: 44,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 44,
+                                      height: 44,
+                                      color: p.surface,
+                                      child: Icon(Icons.music_note_rounded, color: p.primary, size: 20),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        pl.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: inPlaylist ? FontWeight.w800 : FontWeight.w600,
+                                          color: inPlaylist ? p.primary : p.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '${pl.songs.length} Tracks • ${pl.source.displayName}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: p.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  inPlaylist ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                                  color: inPlaylist ? p.primary : p.textSecondary,
+                                  size: 22,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Create new playlist prompt
+  void _showCreatePlaylistInlineDialog(
+    BuildContext context,
+    Song song,
+    SongColorPalette p,
+    VoidCallback onCreated,
+  ) {
+    final titleCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: p.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'New Playlist',
+          style: TextStyle(color: p.textPrimary, fontWeight: FontWeight.w800, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter a title for your playlist. "${song.title}" will be added as the first track.',
+              style: TextStyle(color: p.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: titleCtrl,
+              autofocus: true,
+              style: TextStyle(color: p.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'e.g. Late Night Vibes',
+                hintStyle: TextStyle(color: p.textSecondary.withOpacity(0.5)),
+                filled: true,
+                fillColor: p.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: p.primary.withOpacity(0.4)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: p.primary, width: 1.5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx),
+            child: Text('Cancel', style: TextStyle(color: p.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: p.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              final title = titleCtrl.text.trim();
+              Navigator.pop(dlgCtx);
+              if (title.isNotEmpty) {
+                widget.state.createPlaylist(title, initialSong: song);
+                onCreated();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Created "$title" & added "${song.title}"!'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('Create', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

@@ -44,6 +44,10 @@ class MusicPlayerState extends ChangeNotifier {
   List<Playlist> _bollywoodPlaylists = [];
   List<Playlist> _hollywoodPlaylists = [];
   List<Playlist> _bengaliPlaylists = [];
+  List<Playlist> _spotifyPlaylists = [];
+  List<Playlist> _youtubePlaylists = [];
+  List<Playlist> _jiosaavnPlaylists = [];
+  List<Playlist> _customPlaylists = [];
   List<Album> _trendingAlbums = [];
 
   // Equalizer
@@ -75,6 +79,70 @@ class MusicPlayerState extends ChangeNotifier {
     _bollywoodPlaylists = List.from(MockMusicRepository.bollywoodPlaylists);
     _hollywoodPlaylists = List.from(MockMusicRepository.hollywoodPlaylists);
     _bengaliPlaylists = List.from(MockMusicRepository.bengaliPlaylists);
+    _customPlaylists = List.from(MockMusicRepository.playlists);
+    _spotifyPlaylists = List.from(MockMusicRepository.spotifyPlaylists);
+    _youtubePlaylists = [
+      Playlist(
+        id: 'yt_top_100',
+        title: 'YouTube Music Top 100',
+        description: 'Global streaming charts & trending music videos.',
+        coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
+        songs: MockMusicRepository.hollywoodPlaylists.first.songs,
+        source: MusicSource.youtube,
+      ),
+      Playlist(
+        id: 'yt_lofi_chill',
+        title: 'Lo-Fi Chill & Beats',
+        description: 'Mellow beats, late-night study vibes & soothing rhythms.',
+        coverUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=800&q=80',
+        songs: MockMusicRepository.hollywoodPlaylists.length > 1
+            ? MockMusicRepository.hollywoodPlaylists[1].songs
+            : MockMusicRepository.allSongs,
+        source: MusicSource.youtube,
+      ),
+      Playlist(
+        id: 'yt_dance_hits',
+        title: 'EDM & Dance Floor Mix',
+        description: 'Electrifying club anthems & bass drops.',
+        coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
+        songs: MockMusicRepository.allSongs,
+        source: MusicSource.youtube,
+      ),
+    ];
+    _jiosaavnPlaylists = [
+      Playlist(
+        id: 'js_weekly_top',
+        title: 'JioSaavn Weekly Top 50',
+        description: 'Trending Bollywood & Indian chartbusters on JioSaavn.',
+        coverUrl: MockMusicRepository.bollywoodPlaylists.first.coverUrl,
+        songs: MockMusicRepository.bollywoodPlaylists.first.songs,
+        source: MusicSource.jiosaavn,
+      ),
+      Playlist(
+        id: 'js_arijit_hits',
+        title: 'Arijit Singh: Romance & Soul',
+        description: 'Pure acoustic feelings and soul stirring melodies.',
+        coverUrl: MockMusicRepository.bollywoodPlaylists.length > 2
+            ? MockMusicRepository.bollywoodPlaylists[2].coverUrl
+            : MockMusicRepository.bollywoodPlaylists.first.coverUrl,
+        songs: MockMusicRepository.bollywoodPlaylists.length > 2
+            ? MockMusicRepository.bollywoodPlaylists[2].songs
+            : MockMusicRepository.allSongs,
+        source: MusicSource.jiosaavn,
+      ),
+      Playlist(
+        id: 'js_desi_party',
+        title: 'Desi Punjabi Party',
+        description: 'High energy dance bangers and Punjabi pop.',
+        coverUrl: MockMusicRepository.bollywoodPlaylists.length > 3
+            ? MockMusicRepository.bollywoodPlaylists[3].coverUrl
+            : MockMusicRepository.bollywoodPlaylists.first.coverUrl,
+        songs: MockMusicRepository.bollywoodPlaylists.length > 3
+            ? MockMusicRepository.bollywoodPlaylists[3].songs
+            : MockMusicRepository.allSongs,
+        source: MusicSource.jiosaavn,
+      ),
+    ];
     _trendingAlbums = List.from(MockMusicRepository.albums);
 
     _bollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'hindi').toList();
@@ -287,6 +355,118 @@ class MusicPlayerState extends ChangeNotifier {
         _trendingAlbums = loadedAlbums;
       }
 
+      // Populate Multi-Platform Playlists (Spotify, YouTube Music, JioSaavn)
+      if (hTop.isNotEmpty || hPop.isNotEmpty) {
+        final spPool = [...hTop, ...hPop, ...hSynth];
+        _spotifyPlaylists = [
+          Playlist(
+            id: 'sp_today_top_hits',
+            title: "Today's Top Hits",
+            description: "Spotify's biggest global hits & chartbusters.",
+            coverUrl: hTop.isNotEmpty ? hTop.first.coverUrl : spPool.first.coverUrl,
+            songs: hTop.isNotEmpty ? hTop : spPool,
+            source: MusicSource.spotify,
+          ),
+          Playlist(
+            id: 'sp_pop_rising',
+            title: 'Pop Rising Global',
+            description: 'The next generation of pop music sensations.',
+            coverUrl: hPop.isNotEmpty ? hPop.first.coverUrl : spPool.first.coverUrl,
+            songs: hPop.isNotEmpty ? hPop : spPool,
+            source: MusicSource.spotify,
+          ),
+          if (hSynth.isNotEmpty)
+            Playlist(
+              id: 'sp_deep_focus',
+              title: 'Deep Focus & Retro Synth',
+              description: 'Atmospheric electronic & late night chill soundscapes.',
+              coverUrl: hSynth.first.coverUrl,
+              songs: hSynth,
+              source: MusicSource.spotify,
+            ),
+          if (bHits.isNotEmpty)
+            Playlist(
+              id: 'sp_hot_hits_hindi',
+              title: 'Hot Hits Hindi',
+              description: 'The hottest Bollywood songs in India right now on Spotify.',
+              coverUrl: bHits.first.coverUrl,
+              songs: bHits,
+              source: MusicSource.spotify,
+            ),
+        ];
+      }
+
+      if (hBillboard.isNotEmpty || bParty.isNotEmpty) {
+        _youtubePlaylists = [
+          Playlist(
+            id: 'yt_top_charts',
+            title: 'YouTube Music Top 100',
+            description: 'Top trending tracks and viral music videos on YouTube.',
+            coverUrl: hBillboard.isNotEmpty ? hBillboard.first.coverUrl : (hTop.isNotEmpty ? hTop.first.coverUrl : ''),
+            songs: hBillboard.isNotEmpty ? hBillboard : hTop,
+            source: MusicSource.youtube,
+          ),
+          if (bParty.isNotEmpty)
+            Playlist(
+              id: 'yt_party_mix',
+              title: 'Desi Dance Party YouTube Mix',
+              description: 'High energy Punjabi beats and club chartbusters.',
+              coverUrl: bParty.first.coverUrl,
+              songs: bParty,
+              source: MusicSource.youtube,
+            ),
+          if (hSynth.isNotEmpty)
+            Playlist(
+              id: 'yt_lofi_mix',
+              title: 'Lo-Fi Chill & Beats',
+              description: 'Mellow vibes and soothing rhythms for deep relaxation.',
+              coverUrl: hSynth.first.coverUrl,
+              songs: hSynth,
+              source: MusicSource.youtube,
+            ),
+        ];
+      }
+
+      if (bHits.isNotEmpty || bRomance.isNotEmpty) {
+        _jiosaavnPlaylists = [
+          Playlist(
+            id: 'js_weekly_charts',
+            title: 'JioSaavn Weekly Top 50',
+            description: 'Official weekly Indian streaming chart on JioSaavn.',
+            coverUrl: bHits.first.coverUrl,
+            songs: bHits,
+            source: MusicSource.jiosaavn,
+          ),
+          if (bRomance.isNotEmpty)
+            Playlist(
+              id: 'js_romance_melodies',
+              title: 'Bollywood Romance & Heartbeats',
+              description: 'Soulful love anthems and acoustic feelings.',
+              coverUrl: bRomance.first.coverUrl,
+              songs: bRomance,
+              source: MusicSource.jiosaavn,
+            ),
+          if (bArijit.isNotEmpty)
+            Playlist(
+              id: 'js_arijit_essentials',
+              title: 'Arijit Singh Essentials',
+              description: 'The defining romantic voice of our generation on JioSaavn.',
+              coverUrl: bArijit.first.coverUrl,
+              songs: bArijit,
+              source: MusicSource.jiosaavn,
+            ),
+          if (benTop.isNotEmpty)
+            Playlist(
+              id: 'js_bangla_hits',
+              title: 'Bangla Top Chartbusters',
+              description: 'The biggest Bengali cinema and modern hits.',
+              coverUrl: benTop.first.coverUrl,
+              songs: benTop,
+              source: MusicSource.jiosaavn,
+            ),
+        ];
+      }
+
       // Combine into _onlineTrending
       final combined = <Song>[];
       for (final s in [..._bollywoodSongs, ..._hollywoodSongs, ..._bengaliSongs]) {
@@ -356,6 +536,112 @@ class MusicPlayerState extends ChangeNotifier {
   List<Playlist> get bollywoodPlaylists => List.unmodifiable(_bollywoodPlaylists);
   List<Playlist> get hollywoodPlaylists => List.unmodifiable(_hollywoodPlaylists);
   List<Playlist> get bengaliPlaylists => List.unmodifiable(_bengaliPlaylists);
+  List<Playlist> get spotifyPlaylists => List.unmodifiable(_spotifyPlaylists);
+  List<Playlist> get youtubePlaylists => List.unmodifiable(_youtubePlaylists);
+  List<Playlist> get jiosaavnPlaylists => List.unmodifiable(_jiosaavnPlaylists);
+  List<Playlist> get customPlaylists => List.unmodifiable(_customPlaylists);
+  List<Playlist> get endlessPlaylists => List.unmodifiable([
+        ..._spotifyPlaylists,
+        ..._youtubePlaylists,
+        ..._jiosaavnPlaylists,
+        ..._bollywoodPlaylists,
+        ..._hollywoodPlaylists,
+        ..._bengaliPlaylists,
+      ]);
+  List<Playlist> get allPlaylists => List.unmodifiable([
+        ..._customPlaylists,
+        ...MockMusicRepository.playlists,
+      ]);
+
+  // Playlist Management
+  Playlist createPlaylist(String title, {String? description, Song? initialSong}) {
+    final newId = 'custom_pl_${DateTime.now().millisecondsSinceEpoch}';
+    final newPl = Playlist(
+      id: newId,
+      title: title.trim().isNotEmpty ? title.trim() : 'My Playlist',
+      description: description ?? 'Created with Bitify',
+      coverUrl: initialSong?.coverUrl ??
+          'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
+      songs: initialSong != null ? [initialSong] : [],
+      isCustom: true,
+      source: MusicSource.spotify,
+    );
+    _customPlaylists.insert(0, newPl);
+    notifyListeners();
+    return newPl;
+  }
+
+  void addSongToPlaylist(String playlistId, Song song) {
+    final idx = _customPlaylists.indexWhere((p) => p.id == playlistId);
+    if (idx != -1) {
+      final pl = _customPlaylists[idx];
+      if (!pl.songs.any((s) => s.id == song.id)) {
+        final updatedSongs = [...pl.songs, song];
+        _customPlaylists[idx] = Playlist(
+          id: pl.id,
+          title: pl.title,
+          description: pl.description,
+          coverUrl: pl.coverUrl.isEmpty ? song.coverUrl : pl.coverUrl,
+          songs: updatedSongs,
+          isCustom: pl.isCustom,
+          source: pl.source,
+        );
+        notifyListeners();
+      }
+    } else {
+      final mockIdx = MockMusicRepository.playlists.indexWhere((p) => p.id == playlistId);
+      if (mockIdx != -1) {
+        final pl = MockMusicRepository.playlists[mockIdx];
+        if (!pl.songs.any((s) => s.id == song.id)) {
+          final updatedSongs = [...pl.songs, song];
+          _customPlaylists.add(Playlist(
+            id: pl.id,
+            title: pl.title,
+            description: pl.description,
+            coverUrl: pl.coverUrl,
+            songs: updatedSongs,
+            isCustom: true,
+            source: pl.source,
+          ));
+          notifyListeners();
+        }
+      }
+    }
+  }
+
+  void removeSongFromPlaylist(String playlistId, String songId) {
+    final idx = _customPlaylists.indexWhere((p) => p.id == playlistId);
+    if (idx != -1) {
+      final pl = _customPlaylists[idx];
+      final updatedSongs = pl.songs.where((s) => s.id != songId).toList();
+      _customPlaylists[idx] = Playlist(
+        id: pl.id,
+        title: pl.title,
+        description: pl.description,
+        coverUrl: pl.coverUrl,
+        songs: updatedSongs,
+        isCustom: pl.isCustom,
+        source: pl.source,
+      );
+      notifyListeners();
+    }
+  }
+
+  bool isSongInPlaylist(String playlistId, String songId) {
+    final pl = _customPlaylists.firstWhere(
+      (p) => p.id == playlistId,
+      orElse: () => MockMusicRepository.playlists.firstWhere(
+        (p) => p.id == playlistId,
+        orElse: () => const Playlist(id: '', title: '', description: '', coverUrl: ''),
+      ),
+    );
+    return pl.songs.any((s) => s.id == songId);
+  }
+
+  void deletePlaylist(String playlistId) {
+    _customPlaylists.removeWhere((p) => p.id == playlistId);
+    notifyListeners();
+  }
   List<Album> get trendingAlbums => List.unmodifiable(_trendingAlbums.isNotEmpty ? _trendingAlbums : MockMusicRepository.albums);
   bool get isLoadingOnline => _isLoadingOnline;
   List<double> get bandGains => List.unmodifiable(_bandGains);
@@ -745,6 +1031,22 @@ class MusicPlayerState extends ChangeNotifier {
         break;
       case MusicSource.local:
         break;
+    }
+    notifyListeners();
+  }
+
+  void addToQueue(Song song) {
+    if (!_queue.any((s) => s.id == song.id)) {
+      _queue.add(song);
+      notifyListeners();
+    }
+  }
+
+  void addAllToQueue(List<Song> songs) {
+    for (final song in songs) {
+      if (!_queue.any((s) => s.id == song.id)) {
+        _queue.add(song);
+      }
     }
     notifyListeners();
   }

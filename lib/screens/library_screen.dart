@@ -45,7 +45,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
         final p = ThemeColorService().palette;
         final allSongs = MockMusicRepository.allSongs;
         final likedSongs = allSongs.where((s) => widget.state.isSongLiked(s.id)).toList();
-        final playlists = MockMusicRepository.playlists;
+        final playlists = widget.state.allPlaylists;
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -463,9 +463,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
             ),
             onPressed: () {
               Navigator.pop(context);
-              if (controller.text.isNotEmpty) {
+              final title = controller.text.trim();
+              if (title.isNotEmpty) {
+                widget.state.createPlaylist(title);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Created playlist "${controller.text}"')),
+                  SnackBar(content: Text('Created playlist "$title"')),
                 );
               }
             },
