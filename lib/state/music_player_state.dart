@@ -5,6 +5,7 @@ import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
 import '../services/audio_dsp_service.dart';
 import '../services/music_api_service.dart';
+import '../services/spotify_algorithm_service.dart';
 import '../services/theme_color_service.dart';
 
 enum BitifyRepeatMode { off, all, one }
@@ -18,7 +19,9 @@ class MusicPlayerState extends ChangeNotifier {
   int _durationSeconds = 0;
   bool _isShuffle = false;
   BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
+  bool _spotifyAlgorithmEnabled = true;
   List<Song> _queue = [];
+  final List<Song> _history = [];
   List<Song> _onlineTrending = [];
   bool _isLoadingOnline = false;
 
@@ -132,7 +135,9 @@ class MusicPlayerState extends ChangeNotifier {
       : (_currentSong?.durationSeconds ?? 180);
   bool get isShuffle => _isShuffle;
   BitifyRepeatMode get repeatMode => _repeatMode;
+  bool get spotifyAlgorithmEnabled => _spotifyAlgorithmEnabled;
   List<Song> get queue => List.unmodifiable(_queue);
+  List<Song> get history => List.unmodifiable(_history);
   List<Song> get onlineTrending => List.unmodifiable(_onlineTrending.isNotEmpty ? _onlineTrending : _queue);
   bool get isLoadingOnline => _isLoadingOnline;
   List<double> get bandGains => List.unmodifiable(_bandGains);
@@ -151,8 +156,25 @@ class MusicPlayerState extends ChangeNotifier {
 
   bool isSongLiked(String id) => _likedSongIds.contains(id);
 
+  void toggleSpotifyAlgorithm() {
+    _spotifyAlgorithmEnabled = !_spotifyAlgorithmEnabled;
+    notifyListeners();
+  }
+
+  void playWithSpotifyAlgorithm(Song seedSong, {List<Song>? contextPlaylist}) {
+    _spotifyAlgorithmEnabled = true;
+    final pool = (contextPlaylist != null && contextPlaylist.isNotEmpty)
+        ? contextPlaylist
+        : MockMusicRepository.allSongs;
+    final algorithmicQueue = SpotifyAlgorithmService.generateAlgorithmicQueue(seedSong, pool);
+    playSong(seedSong, newQueue: algorithmicQueue);
+  }
+
   Future<void> playSong(Song song, {List<Song>? newQueue}) async {
     _currentSong = song;
+    if (!_history.any((s) => s.id == song.id)) {
+      _history.insert(0, song);
+    }
     if (newQueue != null && newQueue.isNotEmpty) {
       _queue = List.from(newQueue);
     } else if (!_queue.any((s) => s.id == song.id)) {
@@ -224,6 +246,16 @@ class MusicPlayerState extends ChangeNotifier {
     if (currentIndex == -1 || currentIndex >= _queue.length - 1) {
       if (_repeatMode == BitifyRepeatMode.all) {
         playSong(_queue.first);
+      } else if (_spotifyAlgorithmEnabled) {
+        // Spotify Autoplay Algorithm: discover and append next harmonious track
+        final pool = MockMusicRepository.allSongs;
+        final nextSong = SpotifyAlgorithmService.getNextAlgorithmicSong(
+          _currentSong!,
+          pool,
+          _history.map((s) => s.id).toSet(),
+        );
+        _queue.add(nextSong);
+        playSong(nextSong);
       } else {
         _isPlaying = false;
         _audioPlayer.stop();

@@ -187,6 +187,44 @@ class MockMusicRepository {
     ),
   ];
 
+  static final List<Playlist> spotifyPlaylists = [
+    Playlist(
+      id: 'sp_top_hits',
+      title: "Today's Top Hits",
+      description: 'The hottest tracks in the world right now on Spotify.',
+      coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80',
+      songs: [allSongs[0], allSongs[3], allSongs[5], allSongs[7]],
+    ),
+    Playlist(
+      id: 'sp_rapcaviar',
+      title: 'RapCaviar',
+      description: 'Spotify flagship hip-hop and powerhouse chartbusters.',
+      coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
+      songs: [allSongs[0], allSongs[4], allSongs[7], allSongs[1]],
+    ),
+    Playlist(
+      id: 'sp_deep_focus',
+      title: 'Deep Focus',
+      description: 'Atmospheric post-rock, chill and ambient synth soundscapes.',
+      coverUrl: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=800&q=80',
+      songs: [allSongs[1], allSongs[4], allSongs[2], allSongs[6]],
+    ),
+    Playlist(
+      id: 'sp_pop_rising',
+      title: 'Pop Rising',
+      description: 'Who\'s next in pop music. Curated by Spotify editorial.',
+      coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
+      songs: [allSongs[3], allSongs[5], allSongs[0], allSongs[2]],
+    ),
+    Playlist(
+      id: 'sp_retrowave',
+      title: 'Synthwave / Retro',
+      description: 'Neon drenched synthwave, synthpop and 80s electro nostalgia.',
+      coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
+      songs: [allSongs[1], allSongs[0], allSongs[4], allSongs[3]],
+    ),
+  ];
+
   static final List<Playlist> playlists = [
     Playlist(
       id: 'p1',

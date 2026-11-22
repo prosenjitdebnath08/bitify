@@ -21,6 +21,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   late AnimationController _rotationController;
   bool _isDraggingSeek = false;
   double _dragSeekValue = 0.0;
+  bool _showPlaylist = false;
 
   @override
   void initState() {
@@ -91,185 +92,275 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
               ),
             ),
             child: SafeArea(
-              child: Stack(
-                children: [
-                  // 1. Top Bar with back button and options
-                  Positioned(
-                    top: 10,
-                    left: 16,
-                    right: 16,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        NeumorphicBox(
-                          width: 44,
-                          height: 44,
-                          borderRadius: 22,
-                          onTap: () => Navigator.pop(context),
-                          child: Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            size: 18,
-                            color: p.textPrimary,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onVerticalDragEnd: (details) {
+                  if (details.primaryVelocity == null) return;
+                  if (details.primaryVelocity! < -120) {
+                    // Swipe UP -> show playlist in the blank space
+                    if (!_showPlaylist) {
+                      setState(() => _showPlaylist = true);
+                    }
+                  } else if (details.primaryVelocity! > 120) {
+                    // Swipe DOWN -> return to vinyl turntable stage
+                    if (_showPlaylist) {
+                      setState(() => _showPlaylist = false);
+                    }
+                  }
+                },
+                child: Stack(
+                  children: [
+                    // 1. Top Bar with back button and options
+                    Positioned(
+                      top: 10,
+                      left: 16,
+                      right: 16,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          NeumorphicBox(
+                            width: 44,
+                            height: 44,
+                            borderRadius: 22,
+                            onTap: () => Navigator.pop(context),
+                            child: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 18,
+                              color: p.textPrimary,
+                            ),
                           ),
-                        ),
-                        NeumorphicBox(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          borderRadius: 16,
-                          child: Row(
+                          NeumorphicBox(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            borderRadius: 16,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: p.primary,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: p.glow,
+                                        blurRadius: 8,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '256kbps Master',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: p.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
                             children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
+                              // Theme Shuffle Button (Dark / Light / System)
+                              NeumorphicBox(
+                                width: 44,
+                                height: 44,
+                                borderRadius: 22,
+                                onTap: () async {
+                                  await ThemeColorService().cycleThemeMode();
+                                  final mode = ThemeColorService().themeMode;
+                                  final label = mode == ThemeModeOption.dark
+                                      ? 'Dark'
+                                      : (mode == ThemeModeOption.light ? 'Light' : 'System Default');
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Theme set to: $label'),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Icon(
+                                  ThemeColorService().themeMode == ThemeModeOption.dark
+                                      ? Icons.dark_mode_rounded
+                                      : (ThemeColorService().themeMode == ThemeModeOption.light
+                                          ? Icons.light_mode_rounded
+                                          : Icons.brightness_auto_rounded),
+                                  size: 20,
                                   color: p.primary,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: p.glow,
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                '256kbps Master',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
+                              NeumorphicBox(
+                                width: 44,
+                                height: 44,
+                                borderRadius: 22,
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => EqualizerScreen(state: widget.state),
+                                    ),
+                                  );
+                                },
+                                child: Icon(
+                                  Icons.tune_rounded,
+                                  size: 20,
                                   color: p.textPrimary,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        Row(
-                          children: [
-                            // Theme Shuffle Button (Dark / Light / System)
-                            NeumorphicBox(
-                              width: 44,
-                              height: 44,
-                              borderRadius: 22,
-                              onTap: () async {
-                                await ThemeColorService().cycleThemeMode();
-                                final mode = ThemeColorService().themeMode;
-                                final label = mode == ThemeModeOption.dark
-                                    ? 'Dark'
-                                    : (mode == ThemeModeOption.light ? 'Light' : 'System Default');
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Theme set to: $label'),
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: Icon(
-                                ThemeColorService().themeMode == ThemeModeOption.dark
-                                    ? Icons.dark_mode_rounded
-                                    : (ThemeColorService().themeMode == ThemeModeOption.light
-                                        ? Icons.light_mode_rounded
-                                        : Icons.brightness_auto_rounded),
-                                size: 20,
-                                color: p.primary,
-                              ),
+                        ],
+                      ),
+                    ),
+
+                    // 2. Track Typography (Top Left, exactly matching the reference design)
+                    Positioned(
+                      top: 76,
+                      left: 24,
+                      right: 90,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: p.textPrimary,
+                              letterSpacing: -0.5,
+                              height: 1.15,
                             ),
-                            const SizedBox(width: 8),
-                            NeumorphicBox(
-                              width: 44,
-                              height: 44,
-                              borderRadius: 22,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => EqualizerScreen(state: widget.state),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            song.album,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: p.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                              color: p.textSecondary.withOpacity(0.85),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Subtle tap/swipe toggle pill
+                          GestureDetector(
+                            onTap: () => setState(() => _showPlaylist = !_showPlaylist),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: p.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: p.isDark ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.55),
+                                  width: 1.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: p.shadowDark.withOpacity(0.35),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
                                   ),
-                                );
-                              },
-                              child: Icon(
-                                Icons.tune_rounded,
-                                size: 20,
-                                color: p.textPrimary,
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _showPlaylist ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                                    size: 16,
+                                    color: p.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _showPlaylist ? 'Swipe down for Disc' : 'Swipe up for Playlist',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: p.textSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // 2. Track Typography (Top Left, exactly matching the reference design)
-                  Positioned(
-                    top: 76,
-                    left: 24,
-                    right: 90,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          song.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: p.textPrimary,
-                            letterSpacing: -0.5,
-                            height: 1.15,
-                          ),
+                    // 3. Right Blank Space: Vinyl Record Cutout OR Scrollable Playlist Queue on Swipe Up
+                    if (!_showPlaylist)
+                      Positioned(
+                        right: -size.width * 0.28,
+                        top: size.height * 0.22,
+                        child: GestureDetector(
+                          onVerticalDragEnd: (details) {
+                            if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
+                              setState(() => _showPlaylist = true);
+                            }
+                          },
+                          child: _buildVinylTurntable(song, p, size),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          song.album,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: p.textSecondary,
-                          ),
+                      )
+                    else
+                      Positioned(
+                        left: 88,
+                        right: 18,
+                        top: size.height * 0.20,
+                        bottom: 124,
+                        child: GestureDetector(
+                          onVerticalDragEnd: (details) {
+                            if (details.primaryVelocity != null && details.primaryVelocity! > 100) {
+                              setState(() => _showPlaylist = false);
+                            }
+                          },
+                          child: _buildPlaylistQueue(song, p),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w400,
-                            color: p.textSecondary.withOpacity(0.85),
-                          ),
-                        ),
-                      ],
+                      ),
+
+                    // 4. Floating Left Control Capsule Bar (Exact match to reference design)
+                    Positioned(
+                      left: 20,
+                      top: size.height * 0.20,
+                      child: _buildVerticalControlCapsule(song, p),
                     ),
-                  ),
 
-                  // 3. Right Vinyl Record Cutout (Large turntable disc protruding from right edge)
-                  Positioned(
-                    right: -size.width * 0.28,
-                    top: size.height * 0.22,
-                    child: _buildVinylTurntable(song, p, size),
-                  ),
+                    // 5. Bottom Neumorphic Seekbar & Controls
+                    Positioned(
+                      bottom: 40,
+                      left: 20,
+                      right: 20,
+                      child: _buildBottomSeekBar(song, p, progress, currentSeconds, duration),
+                    ),
 
-                  // 4. Floating Left Control Capsule Bar (Exact match to reference design)
-                  Positioned(
-                    left: 20,
-                    top: size.height * 0.20,
-                    child: _buildVerticalControlCapsule(song, p),
-                  ),
-
-                  // 5. Bottom Neumorphic Seekbar & Controls
-                  Positioned(
-                    bottom: 24,
-                    left: 20,
-                    right: 20,
-                    child: _buildBottomSeekBar(song, p, progress, currentSeconds, duration),
-                  ),
-                ],
+                    // 6. Visible Bottom Logo in Player (Bitify Master Audio / Spotify Algorithm)
+                    Positioned(
+                      bottom: 12,
+                      left: 0,
+                      right: 0,
+                      child: _buildBottomLogo(p),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -582,5 +673,200 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     final m = sec ~/ 60;
     final s = sec % 60;
     return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Scrollable Playlist Queue shown when user swipes UP on the player
+  Widget _buildPlaylistQueue(Song currentSong, SongColorPalette p) {
+    final queue = widget.state.queue;
+
+    return NeumorphicBox(
+      borderRadius: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.queue_music_rounded, color: p.primary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Playlist Queue',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: p.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '${queue.length} Tracks • Spotify Flow',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: widget.state.spotifyAlgorithmEnabled
+                            ? const Color(0xFF1DB954)
+                            : p.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _showPlaylist = false),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: p.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.keyboard_arrow_down_rounded, size: 22, color: p.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: p.textSecondary.withOpacity(0.15), height: 1),
+          const SizedBox(height: 6),
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: queue.length,
+              itemBuilder: (context, i) {
+                final s = queue[i];
+                final isCurrent = s.id == currentSong.id;
+
+                return GestureDetector(
+                  onTap: () {
+                    widget.state.playSong(s);
+                  },
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isCurrent ? p.primary.withOpacity(0.18) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: isCurrent
+                          ? Border.all(color: p.primary.withOpacity(0.4), width: 1)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            s.coverUrl,
+                            width: 38,
+                            height: 38,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 38,
+                              height: 38,
+                              color: Colors.white12,
+                              child: const Icon(Icons.music_note, size: 18),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                s.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                  color: isCurrent ? p.primary : p.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                s.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: p.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isCurrent && widget.state.isPlaying) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.graphic_eq_rounded,
+                            size: 16,
+                            color: p.primary,
+                          ),
+                        ] else ...[
+                          Text(
+                            s.formattedDuration,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: p.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Visible bottom logo and brand indicator in player
+  Widget _buildBottomLogo(SongColorPalette p) {
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            'assets/bitify_logo.png',
+            height: 18,
+            width: 18,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'BITIFY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 2.0,
+              color: p.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            width: 4,
+            height: 4,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: p.primary),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'SPOTIFY ALGORITHM',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+              color: widget.state.spotifyAlgorithmEnabled ? const Color(0xFF1DB954) : p.primary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -231,7 +231,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 28),
 
-                          // 2. SECTION: Popular Playlists (Tall squircle neumorphic cards, exact match to reference screenshot)
+                          // 2. SECTION: Spotify Playlists (Curated with Spotify Algorithm Flow)
+                          _buildSectionHeader('Spotify Playlists', p, badge: 'SPOTIFY ALGORITHM'),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            height: 216,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              scrollDirection: Axis.horizontal,
+                              itemCount: MockMusicRepository.spotifyPlaylists.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 14),
+                              itemBuilder: (context, i) {
+                                final sp = MockMusicRepository.spotifyPlaylists[i];
+                                return _buildSpotifyPlaylistCard(sp, p);
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          // 3. SECTION: Popular Playlists (Tall squircle neumorphic cards, exact match to reference screenshot)
                           _buildSectionHeader('Popular Playlists', p),
                           const SizedBox(height: 14),
                           Padding(
@@ -246,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&q=80',
                                       palette: p,
                                       onTap: () {
-                                        widget.state.playSong(playlists[0].songs.first, newQueue: playlists[0].songs);
+                                        widget.state.playWithSpotifyAlgorithm(playlists[0].songs.first, contextPlaylist: playlists[0].songs);
                                       },
                                     ),
                                   ),
@@ -259,7 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80',
                                       palette: p,
                                       onTap: () {
-                                        widget.state.playSong(playlists[1].songs.first, newQueue: playlists[1].songs);
+                                        widget.state.playWithSpotifyAlgorithm(playlists[1].songs.first, contextPlaylist: playlists[1].songs);
                                       },
                                     ),
                                   ),
@@ -268,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(height: 28),
 
-                          // 3. SECTION: News / Top Tracks (Horizontal neumorphic pill cards, exact match to reference screenshot)
+                          // 4. SECTION: News / Top Tracks (Horizontal neumorphic pill cards, exact match to reference screenshot)
                           _buildSectionHeader('News', p),
                           const SizedBox(height: 12),
                           Padding(
@@ -295,21 +313,55 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Section Header with title and "..." button on right
-  Widget _buildSectionHeader(String title, SongColorPalette p) {
+  /// Section Header with title and optional badge
+  Widget _buildSectionHeader(String title, SongColorPalette p, {String? badge}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: p.textPrimary,
-              letterSpacing: -0.2,
-            ),
+          Row(
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: p.textPrimary,
+                  letterSpacing: -0.2,
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1DB954).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: const Color(0xFF1DB954).withOpacity(0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.graphic_eq_rounded, size: 10, color: Color(0xFF1DB954)),
+                      const SizedBox(width: 3),
+                      Text(
+                        badge,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          color: Color(0xFF1DB954),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           NeumorphicBox(
             width: 36,
@@ -326,6 +378,121 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(width: 3, height: 3, decoration: BoxDecoration(shape: BoxShape.circle, color: p.textSecondary)),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Spotify Curated Playlist Card with Spotify Algorithmic Flow
+  Widget _buildSpotifyPlaylistCard(Playlist playlist, SongColorPalette palette) {
+    return NeumorphicBox(
+      width: 155,
+      borderRadius: 22,
+      padding: const EdgeInsets.all(10),
+      onTap: () {
+        widget.state.playWithSpotifyAlgorithm(playlist.songs.first, contextPlaylist: playlist.songs);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Playing ${playlist.title} with Spotify Algorithm'),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.network(
+                  playlist.coverUrl,
+                  height: 125,
+                  width: 135,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(height: 125, color: Colors.white12),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1DB954),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1DB954).withOpacity(0.5),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'SPOTIFY',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 8,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                right: 8,
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: palette.surface.withOpacity(0.9),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 18,
+                    color: palette.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            playlist.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: palette.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${playlist.songs.length} Tracks • Algorithm',
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 10,
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
