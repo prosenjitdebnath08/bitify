@@ -89,6 +89,8 @@ class MusicApiService {
           final durationStr = moreInfo['duration']?.toString() ?? '180';
           final duration = int.tryParse(durationStr) ?? 180;
           final coverUrl = _upgradeImage(item['image'] as String?);
+          final rawLang = (item['language'] as String? ?? moreInfo['language'] as String? ?? '').trim();
+          final rawGenre = (item['genre'] as String? ?? moreInfo['genre'] as String? ?? '').trim();
 
           // Assign realistic platform source badge
           MusicSource source;
@@ -113,6 +115,8 @@ class MusicApiService {
               source: source,
               isLossless: true,
               isDolbyAtmos: (hash % 2 == 0),
+              language: rawLang.isNotEmpty ? rawLang : 'Hindi',
+              genre: rawGenre.isNotEmpty ? rawGenre : 'Bollywood / Romantic',
               lyrics: _generateLyricsPreview(title, artist),
             ),
           );
@@ -146,6 +150,7 @@ class MusicApiService {
             final album = item['collectionName'] as String? ?? title;
             final artwork100 = item['artworkUrl100'] as String? ?? '';
             final coverUrl = artwork100.replaceAll('100x100bb', '600x600bb');
+            final genre = item['primaryGenreName'] as String? ?? 'Pop';
 
             results.add(
               Song(
@@ -161,6 +166,8 @@ class MusicApiService {
                 source: MusicSource.spotify,
                 isLossless: true,
                 isDolbyAtmos: false,
+                language: 'English',
+                genre: genre,
                 lyrics: _generateLyricsPreview(title, artist),
               ),
             );

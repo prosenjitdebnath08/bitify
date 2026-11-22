@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/music_models.dart';
 import '../services/download_service.dart';
+import '../services/spotify_algorithm_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/neumorphic_box.dart';
@@ -678,6 +679,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   /// Scrollable Playlist Queue shown when user swipes UP on the player
   Widget _buildPlaylistQueue(Song currentSong, SongColorPalette p) {
     final queue = widget.state.queue;
+    final cluster = SpotifyAlgorithmService.getPrimaryGenreCluster(currentSong);
+    final lang = SpotifyAlgorithmService.normalizeLanguage(currentSong);
+    final genreLabel = cluster.replaceAll('_', ' ').toUpperCase();
+    final langLabel = lang.toUpperCase();
 
     return NeumorphicBox(
       borderRadius: 24,
@@ -702,13 +707,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                       ),
                     ),
                     Text(
-                      '${queue.length} Tracks • Spotify Flow',
-                      style: TextStyle(
+                      '${queue.length} Tracks • $langLabel • $genreLabel',
+                      style: const TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: widget.state.spotifyAlgorithmEnabled
-                            ? const Color(0xFF1DB954)
-                            : p.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Color(0xFF1DB954),
                       ),
                     ),
                   ],

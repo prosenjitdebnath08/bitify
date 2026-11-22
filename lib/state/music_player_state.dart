@@ -63,6 +63,7 @@ class MusicPlayerState extends ChangeNotifier {
     if (_queue.isNotEmpty) {
       _currentSong = _queue.first;
       _durationSeconds = _currentSong!.durationSeconds;
+      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(_currentSong!, _queue);
       ThemeColorService().updateForSong(_currentSong);
     }
     _initAudioListeners();
@@ -111,10 +112,15 @@ class MusicPlayerState extends ChangeNotifier {
       final fetched = await MusicApiService.fetchTrendingSongs();
       if (fetched.isNotEmpty) {
         _onlineTrending = fetched;
-        final existingIds = _queue.map((s) => s.id).toSet();
-        for (final s in fetched) {
-          if (!existingIds.contains(s.id)) {
-            _queue.add(s);
+        final cur = _currentSong;
+        if (cur != null) {
+          final existingIds = _queue.map((s) => s.id).toSet();
+          for (final s in fetched) {
+            if (!existingIds.contains(s.id) &&
+                SpotifyAlgorithmService.isSameLanguage(s, cur) &&
+                SpotifyAlgorithmService.isSameGenreCluster(s, cur)) {
+              _queue.add(s);
+            }
           }
         }
       }
@@ -175,11 +181,35 @@ class MusicPlayerState extends ChangeNotifier {
     if (!_history.any((s) => s.id == song.id)) {
       _history.insert(0, song);
     }
+
+    // Strictly preserve same-language and same-genre consistency across the queue
     if (newQueue != null && newQueue.isNotEmpty) {
-      _queue = List.from(newQueue);
-    } else if (!_queue.any((s) => s.id == song.id)) {
-      _queue.insert(0, song);
+      final matching = newQueue.where((s) =>
+        s.id == song.id || (
+          SpotifyAlgorithmService.isSameLanguage(s, song) &&
+          SpotifyAlgorithmService.isSameGenreCluster(s, song)
+        )
+      ).toList();
+      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(song, matching);
+    } else {
+      final pool = _queue.isNotEmpty ? _queue : MockMusicRepository.allSongs;
+      final matching = pool.where((s) =>
+        s.id == song.id || (
+          SpotifyAlgorithmService.isSameLanguage(s, song) &&
+          SpotifyAlgorithmService.isSameGenreCluster(s, song)
+        )
+      ).toList();
+      // Ensure candidate depth by adding matching songs from repository
+      for (final s in MockMusicRepository.allSongs) {
+        if (!matching.any((m) => m.id == s.id) &&
+            SpotifyAlgorithmService.isSameLanguage(s, song) &&
+            SpotifyAlgorithmService.isSameGenreCluster(s, song)) {
+          matching.add(s);
+        }
+      }
+      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(song, matching);
     }
+
     // Always start playback cleanly from 0:00 (the very beginning)
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
@@ -242,27 +272,48 @@ class MusicPlayerState extends ChangeNotifier {
 
   void next() {
     if (_queue.isEmpty || _currentSong == null) return;
-    final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
-    if (currentIndex == -1 || currentIndex >= _queue.length - 1) {
-      if (_repeatMode == BitifyRepeatMode.all) {
-        playSong(_queue.first);
-      } else if (_spotifyAlgorithmEnabled) {
-        // Spotify Autoplay Algorithm: discover and append next harmonious track
-        final pool = MockMusicRepository.allSongs;
-        final nextSong = SpotifyAlgorithmService.getNextAlgorithmicSong(
-          _currentSong!,
-          pool,
-          _history.map((s) => s.id).toSet(),
-        );
+    final current = _currentSong!;
+    final currentIndex = _queue.indexWhere((s) => s.id == current.id);
+
+    // Look ahead in _queue for next matching song
+    int nextIndex = currentIndex != -1 ? currentIndex + 1 : 0;
+    while (nextIndex < _queue.length) {
+      final candidate = _queue[nextIndex];
+      if (candidate.id != current.id &&
+          SpotifyAlgorithmService.isSameLanguage(candidate, current) &&
+          SpotifyAlgorithmService.isSameGenreCluster(candidate, current)) {
+        playSong(candidate, newQueue: _queue);
+        return;
+      }
+      nextIndex++;
+    }
+
+    if (_repeatMode == BitifyRepeatMode.all) {
+      // Loop back to the first song in queue matching same language & genre
+      final firstMatching = _queue.firstWhere(
+        (s) => SpotifyAlgorithmService.isSameLanguage(s, current) &&
+               SpotifyAlgorithmService.isSameGenreCluster(s, current),
+        orElse: () => _queue.first,
+      );
+      playSong(firstMatching, newQueue: _queue);
+    } else {
+      // Continuously discover next track matching same language and genre
+      final pool = MockMusicRepository.allSongs;
+      final nextSong = SpotifyAlgorithmService.getNextAlgorithmicSong(
+        current,
+        pool,
+        _history.map((s) => s.id).toSet(),
+      );
+      if (nextSong.id != current.id &&
+          SpotifyAlgorithmService.isSameLanguage(nextSong, current) &&
+          SpotifyAlgorithmService.isSameGenreCluster(nextSong, current)) {
         _queue.add(nextSong);
-        playSong(nextSong);
+        playSong(nextSong, newQueue: _queue);
       } else {
         _isPlaying = false;
         _audioPlayer.stop();
         notifyListeners();
       }
-    } else {
-      playSong(_queue[currentIndex + 1]);
     }
   }
 
@@ -272,12 +323,21 @@ class MusicPlayerState extends ChangeNotifier {
       seekTo(0);
       return;
     }
-    final currentIndex = _queue.indexWhere((s) => s.id == _currentSong!.id);
-    if (currentIndex > 0) {
-      playSong(_queue[currentIndex - 1]);
-    } else {
-      seekTo(0);
+    final current = _currentSong!;
+    final currentIndex = _queue.indexWhere((s) => s.id == current.id);
+
+    int prevIndex = (currentIndex != -1 ? currentIndex : _queue.length) - 1;
+    while (prevIndex >= 0) {
+      final candidate = _queue[prevIndex];
+      if (candidate.id != current.id &&
+          SpotifyAlgorithmService.isSameLanguage(candidate, current) &&
+          SpotifyAlgorithmService.isSameGenreCluster(candidate, current)) {
+        playSong(candidate, newQueue: _queue);
+        return;
+      }
+      prevIndex--;
     }
+    seekTo(0);
   }
 
   Future<void> seekTo(int seconds) async {
@@ -302,12 +362,18 @@ class MusicPlayerState extends ChangeNotifier {
 
   void toggleShuffle() {
     _isShuffle = !_isShuffle;
-    if (_isShuffle && _currentSong != null) {
+    if (_currentSong != null) {
       final current = _currentSong!;
-      final others = _queue.where((s) => s.id != current.id).toList()..shuffle();
-      _queue = [current, ...others];
-    } else {
-      _queue = List.from(MockMusicRepository.allSongs);
+      if (_isShuffle) {
+        final matchingOthers = _queue.where((s) =>
+          s.id != current.id &&
+          SpotifyAlgorithmService.isSameLanguage(s, current) &&
+          SpotifyAlgorithmService.isSameGenreCluster(s, current)
+        ).toList()..shuffle();
+        _queue = [current, ...matchingOthers];
+      } else {
+        _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(current, _queue);
+      }
     }
     notifyListeners();
   }

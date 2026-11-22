@@ -50,6 +50,8 @@ class Song {
   final bool isLossless;
   final bool isDolbyAtmos;
   final bool isLiked;
+  final String language;
+  final String genre;
   final List<LyricLine> lyrics;
 
   const Song({
@@ -64,6 +66,8 @@ class Song {
     this.isLossless = true,
     this.isDolbyAtmos = false,
     this.isLiked = false,
+    this.language = 'English',
+    this.genre = 'Pop',
     this.lyrics = const [],
   });
 
@@ -86,6 +90,8 @@ class Song {
       'isLossless': isLossless,
       'isDolbyAtmos': isDolbyAtmos,
       'isLiked': isLiked,
+      'language': language,
+      'genre': genre,
     };
   }
 
@@ -106,6 +112,8 @@ class Song {
       isLossless: json['isLossless'] ?? true,
       isDolbyAtmos: json['isDolbyAtmos'] ?? false,
       isLiked: json['isLiked'] ?? false,
+      language: json['language'] ?? 'English',
+      genre: json['genre'] ?? 'Pop',
     );
   }
 }
