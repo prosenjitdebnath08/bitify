@@ -453,7 +453,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      'Bitify is an independent high-fidelity Android music player and streaming application built with Flutter. It pairs a fluid glassmorphic and neumorphic UI with adaptive color theming (Bitify Dynamic), endless multi-platform playlist streaming from Spotify, YouTube Music, and JioSaavn, built-in studio audio DSP/equalizer controls, custom playlist creation and library management, offline download support, and high-bitrate Master Audio playback.',
+                      'Bitify is an independent high-fidelity Android music player and streaming application built with Flutter. It pairs a fluid glassmorphic and neumorphic UI with BitChord-inspired spring animations and dynamic wash playlist architecture, adaptive color theming (Bitify Dynamic), endless multi-platform playlist streaming from Spotify, YouTube Music, and JioSaavn, built-in studio audio DSP/equalizer controls, custom playlist creation and library management, offline download support, and high-bitrate Master Audio playback.',
                       style: TextStyle(
                         color: p.textSecondary,
                         fontSize: 13,

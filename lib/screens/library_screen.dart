@@ -4,8 +4,10 @@ import '../models/music_models.dart';
 import '../services/download_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
+import '../widgets/bitchord_card_motion.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/song_tile.dart';
+import 'playlist_detail_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -158,11 +160,42 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
           itemCount: playlists.length,
           itemBuilder: (context, i) {
             final playlist = playlists[i];
-            return GestureDetector(
+            final isPlayingThis = widget.state.isPlaying &&
+                playlist.songs.any((s) => s.id == widget.state.currentSong?.id);
+
+            return BitChordCardMotion(
+              borderRadius: 18,
+              glowColor: p.primary,
+              isPlaying: isPlayingThis,
               onTap: () {
-                if (playlist.songs.isNotEmpty) {
-                  widget.state.playSong(playlist.songs.first, newQueue: playlist.songs);
-                }
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        PlaylistDetailScreen(
+                      playlist: playlist,
+                      state: widget.state,
+                      initialPalette: p,
+                    ),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      );
+                      return FadeTransition(
+                        opacity: curved,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(curved),
+                          child: child,
+                        ),
+                      );
+                    },
+                    transitionDuration: const Duration(milliseconds: 240),
+                  ),
+                );
               },
               child: GlassCard(
                 padding: const EdgeInsets.all(10),
@@ -177,6 +210,12 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                           playlist.coverUrl,
                           width: double.infinity,
                           fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: p.surface,
+                            child: Center(
+                              child: Icon(Icons.queue_music_rounded, color: p.primary, size: 36),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -189,7 +228,7 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${playlist.songs.length} Tracks • 256kbps Master',
+                      '${playlist.songs.length} Tracks • Bitify Flow',
                       style: TextStyle(fontSize: 11, color: p.textSecondary),
                     ),
                   ],

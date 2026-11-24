@@ -5,10 +5,12 @@ import '../services/profile_service.dart';
 import '../services/theme_color_service.dart';
 import '../services/update_service.dart';
 import '../state/music_player_state.dart';
+import '../widgets/bitchord_card_motion.dart';
 import '../widgets/neumorphic_box.dart';
 import '../widgets/update_dialog.dart';
 import 'equalizer_screen.dart';
 import 'now_playing_screen.dart';
+import 'playlist_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -590,143 +592,151 @@ class _HomeScreenState extends State<HomeScreen> {
     String badgeLabel = 'SPOTIFY',
     Color badgeColor = const Color(0xFF1DB954),
   }) {
-    return NeumorphicBox(
-      width: 155,
+    final isPlayingThisPlaylist = widget.state.isPlaying &&
+        playlist.songs.any((s) => s.id == widget.state.currentSong?.id);
+
+    return BitChordCardMotion(
       borderRadius: 22,
-      padding: const EdgeInsets.all(10),
+      glowColor: badgeColor,
+      isPlaying: isPlayingThisPlaylist,
       onTap: () {
-        _showPlaylistModal(context, playlist, palette);
+        _openPlaylistDetail(context, playlist, palette);
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  playlist.coverUrl,
-                  height: 125,
-                  width: 135,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildImageFallback(width: 135, height: 125, borderRadius: 16, palette: palette),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                left: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: badgeColor,
-                    borderRadius: BorderRadius.circular(6),
-                    boxShadow: [
-                      BoxShadow(
-                        color: badgeColor.withOpacity(0.5),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    badgeLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 8,
-                      letterSpacing: 0.8,
-                    ),
+      child: NeumorphicBox(
+        width: 155,
+        borderRadius: 22,
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    playlist.coverUrl,
+                    height: 125,
+                    width: 135,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildImageFallback(width: 135, height: 125, borderRadius: 16, palette: palette),
                   ),
                 ),
-              ),
-              // Functional 3-dots options on the playlist card
-              Positioned(
-                top: 6,
-                right: 6,
-                child: GestureDetector(
-                  onTap: () => _showPlaylistActionsBottomSheet(context, playlist, palette),
+                Positioned(
+                  top: 8,
+                  left: 8,
                   child: Container(
-                    width: 26,
-                    height: 26,
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.6),
-                    ),
-                    child: const Icon(
-                      Icons.more_vert_rounded,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: GestureDetector(
-                  onTap: () {
-                    if (playlist.songs.isNotEmpty) {
-                      widget.state.playPlaylist(playlist);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text('Playing ${playlist.title}'),
-                              ),
-                            ],
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  },
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: palette.surface.withOpacity(0.9),
+                      color: badgeColor,
+                      borderRadius: BorderRadius.circular(6),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.3),
+                          color: badgeColor.withOpacity(0.5),
                           blurRadius: 6,
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.play_arrow_rounded,
-                      size: 18,
-                      color: palette.primary,
+                    child: Text(
+                      badgeLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 8,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                 ),
+                // Functional 3-dots options on the playlist card
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: GestureDetector(
+                    onTap: () => _showPlaylistActionsBottomSheet(context, playlist, palette),
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withOpacity(0.6),
+                      ),
+                      child: const Icon(
+                        Icons.more_vert_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (playlist.songs.isNotEmpty) {
+                        widget.state.playPlaylist(playlist);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text('Playing ${playlist.title}'),
+                                ),
+                              ],
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: palette.surface.withOpacity(0.9),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        size: 18,
+                        color: palette.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              playlist.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: palette.textPrimary,
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            playlist.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: palette.textPrimary,
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: 10,
-              color: palette.textSecondary,
-              fontWeight: FontWeight.w600,
+            const SizedBox(height: 2),
+            Text(
+              '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 10,
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -949,216 +959,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Interactive Modal Bottom Sheet to Explore Playlist songs
-  void _showPlaylistModal(BuildContext context, Playlist playlist, SongColorPalette p) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 24,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: p.textSecondary.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Header with Cover Art, Title, Description
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      playlist.coverUrl,
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildImageFallback(width: 72, height: 72, borderRadius: 16, palette: p),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          playlist.title,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: p.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          playlist.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: p.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${playlist.songs.length} Tracks • Curated Bitify Flow',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1DB954),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Action Button: Play All
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  if (playlist.songs.isNotEmpty) {
-                    widget.state.playPlaylist(playlist);
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1DB954), Color(0xFF10B981)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1DB954).withOpacity(0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
-                      SizedBox(width: 6),
-                      Text(
-                        'PLAY PLAYLIST',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(color: p.textSecondary.withOpacity(0.2)),
-              const SizedBox(height: 8),
-              // Song list inside playlist
-              Expanded(
-                child: ListView.separated(
-                  itemCount: playlist.songs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemBuilder: (context, idx) {
-                    final song = playlist.songs[idx];
-                    final isCurrent = song.id == widget.state.currentSong?.id;
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        widget.state.playSong(song, newQueue: playlist.songs);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isCurrent ? p.primary.withOpacity(0.15) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                song.coverUrl,
-                                width: 42,
-                                height: 42,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _buildImageFallback(width: 42, height: 42, borderRadius: 8, palette: p),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                                      color: isCurrent ? p.primary : p.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${song.artist} • ${song.language}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: p.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isCurrent && widget.state.isPlaying)
-                              const Icon(Icons.graphic_eq_rounded, color: Color(0xFF1DB954), size: 18)
-                            else
-                              Text(
-                                song.formattedDuration,
-                                style: TextStyle(fontSize: 11, color: p.textSecondary),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  /// Navigate to full BitChord v1.9 playlist detail screen with smooth spring slide-fade animation
+  void _openPlaylistDetail(BuildContext context, Playlist playlist, SongColorPalette p) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PlaylistDetailScreen(
+          playlist: playlist,
+          state: widget.state,
+          initialPalette: p,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 240),
+      ),
     );
+  }
+
+  void _showPlaylistModal(BuildContext context, Playlist playlist, SongColorPalette p) {
+    _openPlaylistDetail(context, playlist, p);
   }
 
   /// Circular neumorphic button in the Trending row

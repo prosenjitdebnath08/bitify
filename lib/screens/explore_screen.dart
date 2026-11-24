@@ -4,8 +4,10 @@ import '../models/music_models.dart';
 import '../services/music_api_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
+import '../widgets/bitchord_card_motion.dart';
 import '../widgets/neumorphic_box.dart';
 import '../widgets/song_tile.dart';
+import 'playlist_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -455,85 +457,124 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   separatorBuilder: (_, __) => const SizedBox(width: 14),
                                   itemBuilder: (context, idx) {
                                     final pl = searchPlaylists[idx];
+                                    final isPlayingThis = widget.state.isPlaying &&
+                                        pl.songs.any((s) => s.id == widget.state.currentSong?.id);
 
-                                    return NeumorphicBox(
-                                      width: 140,
+                                    return BitChordCardMotion(
                                       borderRadius: 18,
-                                      padding: const EdgeInsets.all(8),
+                                      glowColor: const Color(0xFF1DB954),
+                                      isPlaying: isPlayingThis,
                                       onTap: () {
-                                        widget.state.playPlaylist(pl);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Playing playlist: ${pl.title} (Plays full list)'),
-                                            duration: const Duration(seconds: 2),
+                                        Navigator.push(
+                                          context,
+                                          PageRouteBuilder(
+                                            pageBuilder: (context, animation, secondaryAnimation) =>
+                                                PlaylistDetailScreen(
+                                              playlist: pl,
+                                              state: widget.state,
+                                              initialPalette: p,
+                                            ),
+                                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                              final curved = CurvedAnimation(
+                                                parent: animation,
+                                                curve: Curves.easeOutCubic,
+                                              );
+                                              return FadeTransition(
+                                                opacity: curved,
+                                                child: SlideTransition(
+                                                  position: Tween<Offset>(
+                                                    begin: const Offset(0, 0.06),
+                                                    end: Offset.zero,
+                                                  ).animate(curved),
+                                                  child: child,
+                                                ),
+                                              );
+                                            },
+                                            transitionDuration: const Duration(milliseconds: 240),
                                           ),
                                         );
                                       },
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Stack(
-                                            children: [
-                                              ClipRRect(
-                                                borderRadius: BorderRadius.circular(14),
-                                                child: Image.network(
-                                                  pl.coverUrl,
-                                                  width: 124,
-                                                  height: 105,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, __, ___) => Container(width: 124, height: 105, color: Colors.white12),
-                                                ),
-                                              ),
-                                              Positioned(
-                                                top: 6,
-                                                left: 6,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF1DB954),
-                                                    borderRadius: BorderRadius.circular(5),
+                                      child: NeumorphicBox(
+                                        width: 140,
+                                        borderRadius: 18,
+                                        padding: const EdgeInsets.all(8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Stack(
+                                              children: [
+                                                ClipRRect(
+                                                  borderRadius: BorderRadius.circular(14),
+                                                  child: Image.network(
+                                                    pl.coverUrl,
+                                                    width: 124,
+                                                    height: 105,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (_, __, ___) => Container(width: 124, height: 105, color: Colors.white12),
                                                   ),
-                                                  child: const Text(
-                                                    'PLAYLIST',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 7,
-                                                      fontWeight: FontWeight.w900,
+                                                ),
+                                                Positioned(
+                                                  top: 6,
+                                                  left: 6,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF1DB954),
+                                                      borderRadius: BorderRadius.circular(5),
+                                                    ),
+                                                    child: const Text(
+                                                      'PLAYLIST',
+                                                      style: TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 7,
+                                                        fontWeight: FontWeight.w900,
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                              Positioned(
-                                                bottom: 6,
-                                                right: 6,
-                                                child: Container(
-                                                  width: 26,
-                                                  height: 26,
-                                                  decoration: BoxDecoration(
-                                                    shape: BoxShape.circle,
-                                                    color: p.surface.withOpacity(0.9),
+                                                Positioned(
+                                                  bottom: 6,
+                                                  right: 6,
+                                                  child: GestureDetector(
+                                                    onTap: () {
+                                                      widget.state.playPlaylist(pl);
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text('Playing playlist: ${pl.title} (Plays full list)'),
+                                                          duration: const Duration(seconds: 2),
+                                                        ),
+                                                      );
+                                                    },
+                                                    child: Container(
+                                                      width: 26,
+                                                      height: 26,
+                                                      decoration: BoxDecoration(
+                                                        shape: BoxShape.circle,
+                                                        color: p.surface.withOpacity(0.9),
+                                                      ),
+                                                      child: Icon(Icons.play_arrow_rounded, color: p.primary, size: 16),
+                                                    ),
                                                   ),
-                                                  child: Icon(Icons.play_arrow_rounded, color: p.primary, size: 16),
                                                 ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            pl.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
-                                              color: p.textPrimary,
+                                              ],
                                             ),
-                                          ),
-                                          Text(
-                                            '${pl.songs.length} Tracks • Playlist',
-                                            style: TextStyle(fontSize: 10, color: p.textSecondary),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              pl.title,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                color: p.textPrimary,
+                                              ),
+                                            ),
+                                            Text(
+                                              '${pl.songs.length} Tracks • Playlist',
+                                              style: TextStyle(fontSize: 10, color: p.textSecondary),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     );
                                   },

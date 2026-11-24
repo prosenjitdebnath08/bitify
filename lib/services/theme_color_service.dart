@@ -276,4 +276,23 @@ class ThemeColorService extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Asynchronously extracts a full dynamic SongColorPalette from any artwork URL.
+  Future<SongColorPalette> extractPaletteFromUrl(String url, [ThemeModeOption? mode]) async {
+    final effectiveMode = mode ?? _themeMode;
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(
+        NetworkImage(url),
+        size: const Size(64, 64),
+        maximumColorCount: 8,
+      );
+      final dominant = palette.dominantColor?.color ??
+          palette.vibrantColor?.color ??
+          palette.mutedColor?.color ??
+          const Color(0xFF0284C7);
+      return SongColorPalette.fromColor(dominant, themeMode: effectiveMode);
+    } catch (_) {
+      return SongColorPalette.defaultPalette(effectiveMode);
+    }
+  }
 }

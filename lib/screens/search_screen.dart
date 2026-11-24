@@ -4,7 +4,9 @@ import '../models/music_models.dart';
 import '../services/music_api_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
+import '../widgets/bitchord_card_motion.dart';
 import '../widgets/song_tile.dart';
+import 'playlist_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final MusicPlayerState state;
@@ -406,26 +408,31 @@ class _SearchScreenState extends State<SearchScreen> {
               badgeText = 'PLAYLIST';
           }
 
-          return Container(
-            width: 155,
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: p.isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: p.shadowDark.withOpacity(p.isDark ? 0.5 : 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          final isPlayingThis = widget.state.isPlaying &&
+              pl.songs.any((s) => s.id == widget.state.currentSong?.id);
+
+          return BitChordCardMotion(
+            borderRadius: 22,
+            glowColor: badgeColor,
+            isPlaying: isPlayingThis,
+            onTap: () => _openPlaylistDetail(context, pl, p),
+            child: Container(
+              width: 155,
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: p.isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.05),
                 ),
-              ],
-            ),
-            padding: const EdgeInsets.all(10),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _showPlaylistModal(context, pl, p),
+                boxShadow: [
+                  BoxShadow(
+                    color: p.shadowDark.withOpacity(p.isDark ? 0.5 : 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -544,246 +551,35 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  /// Full Playlist / Album Exploration Modal with Play Choice
-  void _showPlaylistModal(BuildContext context, Playlist playlist, SongColorPalette p) {
-    final Color badgeColor;
-    switch (playlist.source) {
-      case MusicSource.youtube:
-        badgeColor = const Color(0xFFEF4444);
-        break;
-      case MusicSource.spotify:
-        badgeColor = const Color(0xFF10B981);
-        break;
-      case MusicSource.jiosaavn:
-        badgeColor = const Color(0xFF06B6D4);
-        break;
-      default:
-        badgeColor = const Color(0xFF8B5CF6);
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 24,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-          child: Column(
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: p.textSecondary.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      playlist.coverUrl,
-                      width: 72,
-                      height: 72,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(Icons.music_note_rounded, color: badgeColor, size: 32),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          playlist.title,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: p.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          playlist.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: p.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: badgeColor.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '${playlist.songs.length} Tracks • ${playlist.source.displayName}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: badgeColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              GestureDetector(
-                onTap: () {
-                  Navigator.pop(ctx);
-                  if (playlist.songs.isNotEmpty) {
-                    widget.state.playPlaylist(playlist);
-                  }
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [badgeColor, badgeColor.withOpacity(0.8)],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: badgeColor.withOpacity(0.4),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
-                      const SizedBox(width: 6),
-                      Text(
-                        'PLAY FULL PLAYLIST (${playlist.source.displayName.toUpperCase()})',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Divider(color: p.textSecondary.withOpacity(0.2)),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: playlist.songs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemBuilder: (context, idx) {
-                    final song = playlist.songs[idx];
-                    final isCurrent = song.id == widget.state.currentSong?.id;
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        widget.state.playSong(song, newQueue: playlist.songs);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isCurrent ? p.primary.withOpacity(0.15) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                song.coverUrl,
-                                width: 42,
-                                height: 42,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                  width: 42,
-                                  height: 42,
-                                  color: Colors.white12,
-                                  child: const Icon(Icons.music_note, color: Colors.white54, size: 20),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    song.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                                      color: isCurrent ? p.primary : p.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    song.artist,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: p.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              song.formattedDuration,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: p.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+  /// Full BitChord v1.9 Playlist Detail Navigation
+  void _openPlaylistDetail(BuildContext context, Playlist playlist, SongColorPalette p) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PlaylistDetailScreen(
+          playlist: playlist,
+          state: widget.state,
+          initialPalette: p,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(curved),
+              child: child,
+            ),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 240),
+      ),
     );
   }
 
