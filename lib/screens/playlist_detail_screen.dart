@@ -1198,7 +1198,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       case MusicSource.jiosaavn:
         return 'JIOSAAVN CURATED';
       case MusicSource.youtube:
-        return 'YOUTUBE MUSIC';
+        return 'YOUTUBE';
       default:
         return 'BITIFY FLOW';
     }

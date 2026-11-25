@@ -64,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
               : songs.where((s) => s.language.toLowerCase().contains('bengali')).toList();
         } else if (_selectedCategory == 'Spotify') {
           trendingFiltered = songs.where((s) => s.source == MusicSource.spotify).toList();
-        } else if (_selectedCategory == 'YouTube Music') {
+        } else if (_selectedCategory == 'YouTube') {
           trendingFiltered = songs.where((s) => s.source == MusicSource.youtube).toList();
         } else if (_selectedCategory == 'JioSaavn') {
           trendingFiltered = songs.where((s) => s.source == MusicSource.jiosaavn).toList();
@@ -275,8 +275,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
 
                           // 3. YOUTUBE MUSIC MIXES
-                          if (_selectedCategory == 'All' || _selectedCategory == 'YouTube Music') ...[
-                            _buildSectionHeader('YouTube Music Mixes', p, badge: 'TRENDING MIXES', badgeColor: const Color(0xFFEF4444)),
+                          if (_selectedCategory == 'All' || _selectedCategory == 'YouTube') ...[
+                            _buildSectionHeader('YouTube Mixes', p, badge: 'TRENDING MIXES', badgeColor: const Color(0xFFEF4444)),
                             const SizedBox(height: 14),
                             _buildPlaylistCarousel(
                               widget.state.youtubePlaylists,
@@ -492,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Category Filter Bar (All, Spotify, YouTube Music, JioSaavn, Bollywood, Hollywood, Bengali)
   Widget _buildCategoryFilterBar(SongColorPalette p) {
-    const categories = ['All', 'Spotify', 'YouTube Music', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'];
+    const categories = ['All', 'Spotify', 'YouTube', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'];
 
     return SizedBox(
       height: 38,
@@ -925,7 +925,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: ['All', 'Spotify', 'YouTube Music', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'].map((c) {
+              children: ['All', 'Spotify', 'YouTube', 'JioSaavn', 'Bollywood', 'Hollywood', 'Bengali'].map((c) {
                 final isCur = _selectedCategory == c;
                 return GestureDetector(
                   onTap: () {

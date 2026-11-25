@@ -149,7 +149,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     _buildSourceFilterChip(label: 'All Sources', source: null, palette: p),
                     const SizedBox(width: 8),
                     _buildSourceFilterChip(
-                      label: 'YouTube Music',
+                      label: 'YouTube',
                       source: MusicSource.youtube,
                       color: const Color(0xFFEF4444),
                       palette: p,
@@ -183,7 +183,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             CircularProgressIndicator(color: p.primary),
                             const SizedBox(height: 14),
                             Text(
-                              'Searching across Spotify, YouTube Music & JioSaavn...',
+                              'Searching across Spotify, YouTube & JioSaavn...',
                               style: TextStyle(color: p.textSecondary, fontSize: 13),
                             ),
                           ],
@@ -278,7 +278,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return CustomScrollView(
       slivers: [
-        // 1. Multi-source Playlists & Mixes (YouTube Music, Spotify, JioSaavn)
+        // 1. Multi-source Playlists & Mixes (YouTube, Spotify, JioSaavn)
         if (filteredPlaylists.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(

@@ -15,6 +15,7 @@ class MusicPlayerState extends ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   
   Song? _currentSong;
+  String? _resolvedAudioUrl;
   String? _currentYoutubeVideoUrl;
   String? get currentYoutubeVideoUrl => _currentYoutubeVideoUrl;
   bool _isPlaying = false;
@@ -39,6 +40,8 @@ class MusicPlayerState extends ChangeNotifier {
 
   // Single Song Playback Mode (Stop when single track completes) vs Playlist Flow
   bool _isSingleSongMode = false;
+  // True when playing a user-selected Playlist (preserves exact track order on next/previous)
+  bool _isPlaylistQueue = false;
 
   // Categorized Catalogs and Playlists (Bollywood, Hollywood, Bengali)
   List<Song> _bollywoodSongs = [];
@@ -87,8 +90,8 @@ class MusicPlayerState extends ChangeNotifier {
     _youtubePlaylists = [
       Playlist(
         id: 'yt_top_100',
-        title: 'YouTube Music Top 100',
-        description: 'Global streaming charts & trending music videos.',
+        title: 'YouTube Top 100',
+        description: 'Global streaming charts & trending music videos on YouTube.',
         coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&q=80',
         songs: MockMusicRepository.hollywoodPlaylists.first.songs,
         source: MusicSource.youtube,
@@ -399,32 +402,39 @@ class MusicPlayerState extends ChangeNotifier {
         ];
       }
 
-      if (hBillboard.isNotEmpty || bParty.isNotEmpty) {
+      // Populate real YouTube playlists directly from YouTube
+      final ytTrending = await YouTubeService.searchSongs('top music hits 2025', limit: 15);
+      final ytBollywood = await YouTubeService.searchSongs('bollywood hits songs', limit: 15);
+      final ytLofi = await YouTubeService.searchSongs('lofi chill beats music', limit: 15);
+
+      if (ytTrending.isNotEmpty || hBillboard.isNotEmpty || bParty.isNotEmpty) {
         _youtubePlaylists = [
           Playlist(
             id: 'yt_top_charts',
-            title: 'YouTube Music Top 100',
+            title: 'YouTube Top 100',
             description: 'Top trending tracks and viral music videos on YouTube.',
-            coverUrl: hBillboard.isNotEmpty ? hBillboard.first.coverUrl : (hTop.isNotEmpty ? hTop.first.coverUrl : ''),
-            songs: hBillboard.isNotEmpty ? hBillboard : hTop,
+            coverUrl: ytTrending.isNotEmpty
+                ? ytTrending.first.coverUrl
+                : (hBillboard.isNotEmpty ? hBillboard.first.coverUrl : (hTop.isNotEmpty ? hTop.first.coverUrl : '')),
+            songs: ytTrending.isNotEmpty ? ytTrending : (hBillboard.isNotEmpty ? hBillboard : hTop),
             source: MusicSource.youtube,
           ),
-          if (bParty.isNotEmpty)
+          if (ytBollywood.isNotEmpty || bParty.isNotEmpty)
             Playlist(
               id: 'yt_party_mix',
-              title: 'Desi Dance Party YouTube Mix',
-              description: 'High energy Punjabi beats and club chartbusters.',
-              coverUrl: bParty.first.coverUrl,
-              songs: bParty,
+              title: 'Bollywood & Desi YouTube Mix',
+              description: 'Trending Bollywood hits & music videos on YouTube.',
+              coverUrl: ytBollywood.isNotEmpty ? ytBollywood.first.coverUrl : bParty.first.coverUrl,
+              songs: ytBollywood.isNotEmpty ? ytBollywood : bParty,
               source: MusicSource.youtube,
             ),
-          if (hSynth.isNotEmpty)
+          if (ytLofi.isNotEmpty || hSynth.isNotEmpty)
             Playlist(
               id: 'yt_lofi_mix',
               title: 'Lo-Fi Chill & Beats',
-              description: 'Mellow vibes and soothing rhythms for deep relaxation.',
-              coverUrl: hSynth.first.coverUrl,
-              songs: hSynth,
+              description: 'Mellow vibes and soothing rhythms on YouTube.',
+              coverUrl: ytLofi.isNotEmpty ? ytLofi.first.coverUrl : hSynth.first.coverUrl,
+              songs: ytLofi.isNotEmpty ? ytLofi : hSynth,
               source: MusicSource.youtube,
             ),
         ];
@@ -666,20 +676,27 @@ class MusicPlayerState extends ChangeNotifier {
   bool get isSingleSongMode => _isSingleSongMode;
 
   @visibleForTesting
-  void setCurrentSongForTest(Song song) {
+  void setCurrentSongForTest(Song song, {List<Song>? queue, bool isPlaylistQueue = false}) {
     _currentSong = song;
     _isPlaying = false;
     _currentYoutubeVideoUrl = null;
+    if (queue != null) {
+      _queue = List.from(queue);
+    }
+    _isPlaylistQueue = isPlaylistQueue;
     notifyListeners();
   }
 
   Future<void> playSingleSong(Song song) async {
     _isSingleSongMode = true;
+    _isPlaylistQueue = false;
     await playSong(song, newQueue: [song], isSingleSong: true);
   }
 
   Future<void> playPlaylist(Playlist playlist, {int startIndex = 0}) async {
+    if (playlist.songs.isEmpty) return;
     _isSingleSongMode = false;
+    _isPlaylistQueue = true;
     final startSong = (startIndex >= 0 && startIndex < playlist.songs.length)
         ? playlist.songs[startIndex]
         : playlist.songs.first;
@@ -694,6 +711,7 @@ class MusicPlayerState extends ChangeNotifier {
   void playWithSpotifyAlgorithm(Song seedSong, {List<Song>? contextPlaylist}) {
     _spotifyAlgorithmEnabled = true;
     _isSingleSongMode = false;
+    _isPlaylistQueue = false;
     final pool = (contextPlaylist != null && contextPlaylist.isNotEmpty)
         ? contextPlaylist
         : MockMusicRepository.allSongs;
@@ -701,7 +719,12 @@ class MusicPlayerState extends ChangeNotifier {
     playSong(seedSong, newQueue: algorithmicQueue, isSingleSong: false);
   }
 
-  Future<void> playSong(Song song, {List<Song>? newQueue, bool? isSingleSong}) async {
+  Future<void> playSong(
+    Song song, {
+    List<Song>? newQueue,
+    bool? isSingleSong,
+    bool preserveQueueOrder = false,
+  }) async {
     _currentSong = song;
     if (isSingleSong != null) {
       _isSingleSongMode = isSingleSong;
@@ -715,32 +738,42 @@ class MusicPlayerState extends ChangeNotifier {
       _history.insert(0, song);
     }
 
-    // Strictly preserve same-language and same-genre consistency across the queue
-    if (newQueue != null && newQueue.isNotEmpty) {
-      final matching = newQueue.where((s) =>
-        s.id == song.id || (
-          SpotifyAlgorithmService.isSameLanguage(s, song) &&
-          SpotifyAlgorithmService.isSameGenreCluster(s, song)
-        )
-      ).toList();
-      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(song, matching);
-    } else {
-      final pool = _queue.isNotEmpty ? _queue : MockMusicRepository.allSongs;
-      final matching = pool.where((s) =>
-        s.id == song.id || (
-          SpotifyAlgorithmService.isSameLanguage(s, song) &&
-          SpotifyAlgorithmService.isSameGenreCluster(s, song)
-        )
-      ).toList();
-      // Ensure candidate depth by adding matching songs from repository
-      for (final s in MockMusicRepository.allSongs) {
-        if (!matching.any((m) => m.id == s.id) &&
-            SpotifyAlgorithmService.isSameLanguage(s, song) &&
-            SpotifyAlgorithmService.isSameGenreCluster(s, song)) {
-          matching.add(s);
+    if (!preserveQueueOrder) {
+      if (newQueue != null && newQueue.isNotEmpty) {
+        if (newQueue.length > 1) {
+          // Preserve exact playlist order when playing from a playlist!
+          _isPlaylistQueue = true;
+          if (_isShuffle) {
+            final others = newQueue.where((s) => s.id != song.id).toList()..shuffle();
+            _queue = [song, ...others];
+          } else {
+            _queue = List.from(newQueue);
+            if (!_queue.any((s) => s.id == song.id)) {
+              _queue.insert(0, song);
+            }
+          }
+        } else {
+          _isPlaylistQueue = false;
+          _queue = List.from(newQueue);
         }
+      } else {
+        _isPlaylistQueue = false;
+        final pool = _queue.isNotEmpty ? _queue : MockMusicRepository.allSongs;
+        final matching = pool.where((s) =>
+          s.id == song.id || (
+            SpotifyAlgorithmService.isSameLanguage(s, song) &&
+            SpotifyAlgorithmService.isSameGenreCluster(s, song)
+          )
+        ).toList();
+        for (final s in MockMusicRepository.allSongs) {
+          if (!matching.any((m) => m.id == s.id) &&
+              SpotifyAlgorithmService.isSameLanguage(s, song) &&
+              SpotifyAlgorithmService.isSameGenreCluster(s, song)) {
+            matching.add(s);
+          }
+        }
+        _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(song, matching);
       }
-      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(song, matching);
     }
 
     // Always start playback cleanly from 0:00 (the very beginning)
@@ -768,6 +801,7 @@ class MusicPlayerState extends ChangeNotifier {
         }
       }
 
+      _resolvedAudioUrl = resolvedAudioUrl;
       if (resolvedAudioUrl != null && resolvedAudioUrl.isNotEmpty && !resolvedAudioUrl.startsWith('yt://')) {
         await _audioPlayer.play(UrlSource(resolvedAudioUrl));
         // Apply native DSP Equalizer & Audio Effects to the active playback session
@@ -804,11 +838,12 @@ class MusicPlayerState extends ChangeNotifier {
         await _audioPlayer.pause();
         _isPlaying = false;
       } else {
-        if (_currentSong?.audioUrl != null && _currentSong!.audioUrl!.isNotEmpty) {
+        final playUrl = _resolvedAudioUrl ?? _currentSong?.audioUrl;
+        if (playUrl != null && playUrl.isNotEmpty && !playUrl.startsWith('yt://')) {
           if (_positionSeconds > 0) {
             await _audioPlayer.resume();
           } else {
-            await _audioPlayer.play(UrlSource(_currentSong!.audioUrl!));
+            await _audioPlayer.play(UrlSource(playUrl));
           }
           _isPlaying = true;
         }
@@ -824,29 +859,43 @@ class MusicPlayerState extends ChangeNotifier {
     final current = _currentSong!;
     final currentIndex = _queue.indexWhere((s) => s.id == current.id);
 
-    // Look ahead in _queue for next matching song
+    if (_isPlaylistQueue) {
+      final nextIndex = currentIndex != -1 ? currentIndex + 1 : 0;
+      if (nextIndex < _queue.length) {
+        playSong(_queue[nextIndex], preserveQueueOrder: true);
+        return;
+      }
+      if (_repeatMode == BitifyRepeatMode.all) {
+        playSong(_queue.first, preserveQueueOrder: true);
+        return;
+      }
+      _isPlaying = false;
+      _audioPlayer.stop();
+      notifyListeners();
+      return;
+    }
+
+    // Algorithmic queue mode: look ahead in _queue for next matching song
     int nextIndex = currentIndex != -1 ? currentIndex + 1 : 0;
     while (nextIndex < _queue.length) {
       final candidate = _queue[nextIndex];
       if (candidate.id != current.id &&
           SpotifyAlgorithmService.isSameLanguage(candidate, current) &&
           SpotifyAlgorithmService.isSameGenreCluster(candidate, current)) {
-        playSong(candidate, newQueue: _queue);
+        playSong(candidate, preserveQueueOrder: true);
         return;
       }
       nextIndex++;
     }
 
     if (_repeatMode == BitifyRepeatMode.all) {
-      // Loop back to the first song in queue matching same language & genre
       final firstMatching = _queue.firstWhere(
         (s) => SpotifyAlgorithmService.isSameLanguage(s, current) &&
                SpotifyAlgorithmService.isSameGenreCluster(s, current),
         orElse: () => _queue.first,
       );
-      playSong(firstMatching, newQueue: _queue);
+      playSong(firstMatching, preserveQueueOrder: true);
     } else {
-      // Continuously discover next track matching same language and genre
       final pool = MockMusicRepository.allSongs;
       final nextSong = SpotifyAlgorithmService.getNextAlgorithmicSong(
         current,
@@ -857,7 +906,7 @@ class MusicPlayerState extends ChangeNotifier {
           SpotifyAlgorithmService.isSameLanguage(nextSong, current) &&
           SpotifyAlgorithmService.isSameGenreCluster(nextSong, current)) {
         _queue.add(nextSong);
-        playSong(nextSong, newQueue: _queue);
+        playSong(nextSong, preserveQueueOrder: true);
       } else {
         _isPlaying = false;
         _audioPlayer.stop();
@@ -875,13 +924,23 @@ class MusicPlayerState extends ChangeNotifier {
     final current = _currentSong!;
     final currentIndex = _queue.indexWhere((s) => s.id == current.id);
 
+    if (_isPlaylistQueue) {
+      final prevIndex = (currentIndex != -1 ? currentIndex : _queue.length) - 1;
+      if (prevIndex >= 0) {
+        playSong(_queue[prevIndex], preserveQueueOrder: true);
+        return;
+      }
+      seekTo(0);
+      return;
+    }
+
     int prevIndex = (currentIndex != -1 ? currentIndex : _queue.length) - 1;
     while (prevIndex >= 0) {
       final candidate = _queue[prevIndex];
       if (candidate.id != current.id &&
           SpotifyAlgorithmService.isSameLanguage(candidate, current) &&
           SpotifyAlgorithmService.isSameGenreCluster(candidate, current)) {
-        playSong(candidate, newQueue: _queue);
+        playSong(candidate, preserveQueueOrder: true);
         return;
       }
       prevIndex--;

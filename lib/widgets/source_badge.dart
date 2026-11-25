@@ -17,7 +17,7 @@ class SourceBadge extends StatelessWidget {
     switch (source) {
       case MusicSource.youtube:
         bg = const Color(0xFFEF4444);
-        label = 'YouTube Music';
+        label = 'YouTube';
         icon = Icons.play_arrow_rounded;
         break;
       case MusicSource.spotify:

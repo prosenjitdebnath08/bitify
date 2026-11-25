@@ -7,7 +7,7 @@ enum MusicSource {
   String get displayName {
     switch (this) {
       case MusicSource.youtube:
-        return 'YouTube Music';
+        return 'YouTube';
       case MusicSource.spotify:
         return 'Spotify';
       case MusicSource.jiosaavn:

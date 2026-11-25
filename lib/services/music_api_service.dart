@@ -534,7 +534,7 @@ class MusicApiService {
         );
       }
 
-      // 5. Fetch real YouTube Music playlists + Generate fallback YouTube Mixes
+      // 5. Fetch real YouTube playlists + Generate fallback YouTube Mixes
       try {
         final realYtPlaylists = await YouTubeService.searchPlaylists(primaryArtist, limit: 2);
         for (final pl in realYtPlaylists) {
@@ -547,14 +547,14 @@ class MusicApiService {
         debugPrint('Error searching real YouTube playlists: $e');
       }
 
-      // a) "[Artist] • YouTube Music Mix"
+      // a) "[Artist] • YouTube Mix"
       final ytSongs = pool.where((s) => s.source == MusicSource.youtube).toList();
       final poolYt = ytSongs.isNotEmpty ? ytSongs : pool;
       playlists.add(
         Playlist(
           id: 'yt_mix_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
           title: '$primaryArtist • YouTube Mix',
-          description: '${poolYt.length} Tracks • Curated YouTube Music Artist Mix',
+          description: '${poolYt.length} Tracks • Curated YouTube Artist Mix',
           coverUrl: poolYt.first.coverUrl,
           songs: poolYt,
           source: MusicSource.youtube,
@@ -567,7 +567,7 @@ class MusicApiService {
           Playlist(
             id: 'yt_hits_${primaryArtist.toLowerCase().replaceAll(' ', '_')}',
             title: '$primaryArtist • Non-Stop Hits',
-            description: '${pool.length} Tracks • YouTube Music Chartbusters',
+            description: '${pool.length} Tracks • YouTube Chartbusters',
             coverUrl: pool.last.coverUrl,
             songs: pool,
             source: MusicSource.youtube,

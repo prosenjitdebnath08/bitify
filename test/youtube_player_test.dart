@@ -34,6 +34,82 @@ void main() {
       expect(YouTubeService.extractVideoId(spotifySong), isNull);
     });
 
+    test('YouTubeService.parseSearchResponse parses InnerTube videoRenderer JSON', () {
+      const sampleJson = '''
+      {
+        "contents": {
+          "twoColumnSearchResultsRenderer": {
+            "primaryContents": {
+              "sectionListRenderer": {
+                "contents": [
+                  {
+                    "itemSectionRenderer": {
+                      "contents": [
+                        {
+                          "videoRenderer": {
+                            "videoId": "34Na4j8AVgA",
+                            "title": {"runs": [{"text": "The Weeknd - Starboy ft. Daft Punk"}]},
+                            "ownerText": {"runs": [{"text": "The Weeknd"}]},
+                            "lengthText": {"simpleText": "4:33"}
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+      ''';
+
+      final songs = YouTubeService.parseSearchResponse(sampleJson, query: 'Starboy');
+      expect(songs.length, 1);
+      expect(songs.first.id, 'yt_34Na4j8AVgA');
+      expect(songs.first.title, 'The Weeknd - Starboy ft. Daft Punk');
+      expect(songs.first.artist, 'The Weeknd');
+      expect(songs.first.durationSeconds, 273);
+      expect(songs.first.audioUrl, 'yt://34Na4j8AVgA');
+      expect(songs.first.source, MusicSource.youtube);
+    });
+
+    test('Playlist queue advances sequentially 0->1->2->3->4 without jumping back to first two songs', () {
+      final state = MusicPlayerState();
+      final songs = List.generate(
+        5,
+        (i) => Song(
+          id: 'pl_song_$i',
+          title: 'Track $i',
+          artist: i.isEven ? 'Artist A' : 'Artist B',
+          album: 'Album',
+          durationSeconds: 180 + i,
+          coverUrl: 'https://example.com/$i.jpg',
+          language: 'Hindi',
+          genre: 'Bollywood',
+        ),
+      );
+
+      state.setCurrentSongForTest(songs[0], queue: songs, isPlaylistQueue: true);
+      expect(state.currentSong?.id, 'pl_song_0');
+
+      state.next();
+      expect(state.currentSong?.id, 'pl_song_1');
+
+      state.next();
+      expect(state.currentSong?.id, 'pl_song_2');
+
+      state.next();
+      expect(state.currentSong?.id, 'pl_song_3');
+
+      state.next();
+      expect(state.currentSong?.id, 'pl_song_4');
+
+      // With default RepeatMode.all, wraps cleanly to index 0
+      state.next();
+      expect(state.currentSong?.id, 'pl_song_0');
+    });
+
     testWidgets('NowPlayingScreen switches rotary disc to rectangle box with fullscreen for YouTube songs', (tester) async {
       final state = MusicPlayerState();
 
