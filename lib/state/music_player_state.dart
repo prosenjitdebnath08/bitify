@@ -7,6 +7,7 @@ import '../services/audio_dsp_service.dart';
 import '../services/music_api_service.dart';
 import '../services/spotify_algorithm_service.dart';
 import '../services/theme_color_service.dart';
+import '../services/youtube_service.dart';
 
 enum BitifyRepeatMode { off, all, one }
 
@@ -14,6 +15,8 @@ class MusicPlayerState extends ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   
   Song? _currentSong;
+  String? _currentYoutubeVideoUrl;
+  String? get currentYoutubeVideoUrl => _currentYoutubeVideoUrl;
   bool _isPlaying = false;
   int _positionSeconds = 0;
   int _durationSeconds = 0;
@@ -662,6 +665,14 @@ class MusicPlayerState extends ChangeNotifier {
 
   bool get isSingleSongMode => _isSingleSongMode;
 
+  @visibleForTesting
+  void setCurrentSongForTest(Song song) {
+    _currentSong = song;
+    _isPlaying = false;
+    _currentYoutubeVideoUrl = null;
+    notifyListeners();
+  }
+
   Future<void> playSingleSong(Song song) async {
     _isSingleSongMode = true;
     await playSong(song, newQueue: [song], isSingleSong: true);
@@ -735,14 +746,30 @@ class MusicPlayerState extends ChangeNotifier {
     // Always start playback cleanly from 0:00 (the very beginning)
     _positionSeconds = 0;
     _durationSeconds = song.durationSeconds;
+    _currentYoutubeVideoUrl = null;
     _isPlaying = true;
     ThemeColorService().updateForSong(song);
     notifyListeners();
 
     try {
       await _audioPlayer.stop();
-      if (song.audioUrl != null && song.audioUrl!.isNotEmpty) {
-        await _audioPlayer.play(UrlSource(song.audioUrl!));
+      String? resolvedAudioUrl = song.audioUrl;
+
+      // Resolve real YouTube audio & video streams if this is a YouTube track
+      final ytVideoId = YouTubeService.extractVideoId(song);
+      if (ytVideoId != null) {
+        final pair = await YouTubeService.resolveStreamUrls(ytVideoId);
+        // Guard against user switching songs while stream resolves
+        if (_currentSong?.id != song.id) return;
+        if (pair != null) {
+          resolvedAudioUrl = pair.audioUrl;
+          _currentYoutubeVideoUrl = pair.videoUrl;
+          notifyListeners();
+        }
+      }
+
+      if (resolvedAudioUrl != null && resolvedAudioUrl.isNotEmpty && !resolvedAudioUrl.startsWith('yt://')) {
+        await _audioPlayer.play(UrlSource(resolvedAudioUrl));
         // Apply native DSP Equalizer & Audio Effects to the active playback session
         Future.delayed(const Duration(milliseconds: 250), () {
           AudioDspService.attachToPlayerAndApply(

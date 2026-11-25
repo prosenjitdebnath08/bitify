@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:video_player/video_player.dart';
 import '../models/music_models.dart';
 import '../services/download_service.dart';
 import '../services/spotify_algorithm_service.dart';
@@ -23,6 +25,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   bool _isDraggingSeek = false;
   double _dragSeekValue = 0.0;
   bool _showPlaylist = false;
+  VideoPlayerController? _videoController;
+  String? _activeVideoUrl;
 
   @override
   void initState() {
@@ -34,11 +38,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     if (widget.state.isPlaying) {
       _rotationController.repeat();
     }
+    widget.state.addListener(_onPlayerStateChanged);
+    _syncVideoController();
   }
 
-  @override
-  void didUpdateWidget(covariant NowPlayingScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
+  void _onPlayerStateChanged() {
+    if (!mounted) return;
     if (widget.state.isPlaying) {
       if (!_rotationController.isAnimating) {
         _rotationController.repeat();
@@ -48,11 +53,81 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         _rotationController.stop();
       }
     }
+    _syncVideoController();
+  }
+
+  Future<void> _syncVideoController() async {
+    final song = widget.state.currentSong;
+    final videoUrl = (song != null && song.source == MusicSource.youtube)
+        ? widget.state.currentYoutubeVideoUrl
+        : null;
+
+    if (videoUrl == null || videoUrl.isEmpty) {
+      if (_videoController != null) {
+        final old = _videoController;
+        _videoController = null;
+        _activeVideoUrl = null;
+        await old?.dispose();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+
+    if (_activeVideoUrl != videoUrl) {
+      _activeVideoUrl = videoUrl;
+      final old = _videoController;
+      _videoController = null;
+      await old?.dispose();
+
+      try {
+        final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+        await controller.initialize();
+        if (!mounted || _activeVideoUrl != videoUrl) {
+          await controller.dispose();
+          return;
+        }
+        await controller.setVolume(0.0);
+        final targetPos = Duration(seconds: widget.state.positionSeconds);
+        if (targetPos > Duration.zero) {
+          await controller.seekTo(targetPos);
+        }
+        if (widget.state.isPlaying) {
+          await controller.play();
+        }
+        setState(() {
+          _videoController = controller;
+        });
+      } catch (e) {
+        debugPrint('YouTube VideoPlayer init error: $e');
+      }
+    } else if (_videoController != null && _videoController!.value.isInitialized) {
+      if (widget.state.isPlaying && !_videoController!.value.isPlaying) {
+        _videoController!.play();
+      } else if (!widget.state.isPlaying && _videoController!.value.isPlaying) {
+        _videoController!.pause();
+      }
+      final diff = (widget.state.positionSeconds - _videoController!.value.position.inSeconds).abs();
+      if (diff > 2) {
+        _videoController!.seekTo(Duration(seconds: widget.state.positionSeconds));
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant NowPlayingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state != widget.state) {
+      oldWidget.state.removeListener(_onPlayerStateChanged);
+      widget.state.addListener(_onPlayerStateChanged);
+    }
+    _onPlayerStateChanged();
   }
 
   @override
   void dispose() {
+    widget.state.removeListener(_onPlayerStateChanged);
     _rotationController.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
@@ -293,7 +368,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    _showPlaylist ? 'Swipe down for Disc' : 'Swipe up for Playlist',
+                                    _showPlaylist
+                                        ? (song.source == MusicSource.youtube
+                                            ? 'Swipe down for Video'
+                                            : 'Swipe down for Disc')
+                                        : 'Swipe up for Playlist',
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
@@ -308,20 +387,38 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                       ),
                     ),
 
-                    // 3. Right Blank Space: Vinyl Record Cutout OR Scrollable Playlist Queue on Swipe Up
+                    // 3. Right Blank Space: Vinyl Record Cutout (or Rectangle Box for YouTube) OR Scrollable Playlist Queue on Swipe Up
                     if (!_showPlaylist)
-                      Positioned(
-                        right: -size.width * 0.28,
-                        top: size.height * 0.22,
-                        child: GestureDetector(
-                          onVerticalDragEnd: (details) {
-                            if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
-                              setState(() => _showPlaylist = true);
-                            }
-                          },
-                          child: _buildVinylTurntable(song, p, size),
-                        ),
-                      )
+                      if (song.source == MusicSource.youtube)
+                        Positioned(
+                          left: 88,
+                          right: 18,
+                          top: size.height * 0.25,
+                          bottom: 148,
+                          child: GestureDetector(
+                            onVerticalDragEnd: (details) {
+                              if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
+                                setState(() => _showPlaylist = true);
+                              }
+                            },
+                            child: Center(
+                              child: _buildYoutubeRectangleBox(song, p, size),
+                            ),
+                          ),
+                        )
+                      else
+                        Positioned(
+                          right: -size.width * 0.28,
+                          top: size.height * 0.22,
+                          child: GestureDetector(
+                            onVerticalDragEnd: (details) {
+                              if (details.primaryVelocity != null && details.primaryVelocity! < -100) {
+                                setState(() => _showPlaylist = true);
+                              }
+                            },
+                            child: _buildVinylTurntable(song, p, size),
+                          ),
+                        )
                     else
                       Positioned(
                         left: 88,
@@ -367,6 +464,188 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
         );
       },
+    );
+  }
+
+  /// YouTube 16:9 Rectangle Box replacing the rotary disc when playing YouTube songs
+  Widget _buildYoutubeRectangleBox(Song song, SongColorPalette p, Size size) {
+    final hasVideo = _videoController != null && _videoController!.value.isInitialized;
+    final isPlaying = widget.state.isPlaying;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        color: p.surface,
+        boxShadow: [
+          BoxShadow(
+            color: p.glow,
+            blurRadius: 28,
+            spreadRadius: 4,
+          ),
+          BoxShadow(
+            color: p.shadowDark.withOpacity(0.85),
+            offset: const Offset(6, 10),
+            blurRadius: 18,
+          ),
+        ],
+        border: Border.all(
+          color: p.isDark ? Colors.white.withOpacity(0.2) : Colors.white.withOpacity(0.75),
+          width: 2.0,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Video stream or HD YouTube thumbnail
+              if (hasVideo)
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _videoController!.value.size.width,
+                    height: _videoController!.value.size.height,
+                    child: VideoPlayer(_videoController!),
+                  ),
+                )
+              else
+                Image.network(
+                  song.coverUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.black87,
+                    child: const Center(
+                      child: Icon(Icons.play_circle_fill_rounded, color: Color(0xFFFF0000), size: 54),
+                    ),
+                  ),
+                ),
+
+              // Subtle vignette for readable overlays
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.35),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.55),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Top-left YouTube pill badge
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF0000),
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF0000).withOpacity(0.45),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_arrow_rounded, color: Colors.white, size: 12),
+                      SizedBox(width: 3),
+                      Text(
+                        'YOUTUBE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Center tap to play/pause
+              Center(
+                child: GestureDetector(
+                  onTap: widget.state.togglePlayPause,
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.45),
+                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
+                    ),
+                    child: Icon(
+                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Bottom-right Fullscreen Option Button
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: GestureDetector(
+                  onTap: () => _openFullscreenYoutubePlayer(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.68),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withOpacity(0.28), width: 1),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: 4),
+                        Text(
+                          'FULLSCREEN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openFullscreenYoutubePlayer(BuildContext context) {
+    HapticFeedback.lightImpact();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => _FullscreenYoutubeScreen(
+          state: widget.state,
+          videoController: _videoController,
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 220),
+      ),
     );
   }
 
@@ -1369,6 +1648,234 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Immersive Fullscreen YouTube Player Screen
+class _FullscreenYoutubeScreen extends StatefulWidget {
+  final MusicPlayerState state;
+  final VideoPlayerController? videoController;
+
+  const _FullscreenYoutubeScreen({
+    required this.state,
+    required this.videoController,
+  });
+
+  @override
+  State<_FullscreenYoutubeScreen> createState() => _FullscreenYoutubeScreenState();
+}
+
+class _FullscreenYoutubeScreenState extends State<_FullscreenYoutubeScreen> {
+  bool _showControls = true;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+      DeviceOrientation.portraitUp,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+    super.dispose();
+  }
+
+  String _fmt(int sec) {
+    final m = sec ~/ 60;
+    final s = sec % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: AnimatedBuilder(
+        animation: Listenable.merge([widget.state, ThemeColorService()]),
+        builder: (context, _) {
+          final song = widget.state.currentSong;
+          if (song == null) return const SizedBox.shrink();
+
+          final p = ThemeColorService().palette;
+          final vc = widget.videoController;
+          final hasVideo = vc != null && vc.value.isInitialized;
+          final duration = widget.state.durationSeconds > 0
+              ? widget.state.durationSeconds
+              : (song.durationSeconds > 0 ? song.durationSeconds : 200);
+          final pos = widget.state.positionSeconds.clamp(0, duration);
+
+          return GestureDetector(
+            onTap: () => setState(() => _showControls = !_showControls),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Fullscreen 16:9 Rectangle Video or Artwork
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: hasVideo ? vc.value.aspectRatio : 16 / 9,
+                    child: hasVideo
+                        ? VideoPlayer(vc)
+                        : Image.network(
+                            song.coverUrl,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: Color(0xFFFF0000),
+                              size: 80,
+                            ),
+                          ),
+                  ),
+                ),
+
+                // Controls Overlay
+                if (_showControls)
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.75),
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.85),
+                        ],
+                      ),
+                    ),
+                    child: SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Top Bar: Title + Exit Fullscreen
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        song.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      Text(
+                                        song.artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.fullscreen_exit_rounded,
+                                    color: Colors.white,
+                                    size: 28,
+                                  ),
+                                  tooltip: 'Exit Fullscreen',
+                                  onPressed: () => Navigator.pop(context),
+                                ),
+                              ],
+                            ),
+
+                            // Center Transport Controls
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 38),
+                                  onPressed: widget.state.previous,
+                                ),
+                                const SizedBox(width: 24),
+                                GestureDetector(
+                                  onTap: widget.state.togglePlayPause,
+                                  child: Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: p.primary.withOpacity(0.9),
+                                      boxShadow: [
+                                        BoxShadow(color: p.glow, blurRadius: 16),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      widget.state.isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      color: Colors.white,
+                                      size: 38,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                IconButton(
+                                  icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 38),
+                                  onPressed: widget.state.next,
+                                ),
+                              ],
+                            ),
+
+                            // Bottom Seekbar
+                            Column(
+                              children: [
+                                SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    activeTrackColor: const Color(0xFFFF0000),
+                                    inactiveTrackColor: Colors.white24,
+                                    thumbColor: Colors.white,
+                                    trackHeight: 3.5,
+                                  ),
+                                  child: Slider(
+                                    value: pos.toDouble(),
+                                    min: 0,
+                                    max: duration.toDouble(),
+                                    onChanged: (v) {
+                                      widget.state.seekTo(v.round());
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(_fmt(pos), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                      Text(_fmt(duration), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

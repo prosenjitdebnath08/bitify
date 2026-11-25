@@ -3,6 +3,7 @@ import 'package:dart_des/dart_des.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/music_models.dart';
+import 'youtube_service.dart';
 
 class MusicApiService {
   static const String _jioSaavnBase = 'https://www.jiosaavn.com/api.php';
@@ -46,12 +47,15 @@ class MusicApiService {
     return url.replaceAll('150x150', '500x500').replaceAll('50x50', '500x500');
   }
 
-  /// Universal Search across full catalog (Global, Pop, Hip-Hop, Bollywood, Indie, EDM)
+  /// Universal Search across full catalog (YouTube, JioSaavn, Spotify)
   static Future<List<Song>> searchOnline(String query, {int limit = 30}) async {
     if (query.trim().isEmpty) return [];
 
-    final List<Song> results = [];
+    final List<Song> jioResults = [];
     final Set<String> seenIds = {};
+
+    // Run JioSaavn & real YouTube search in parallel
+    final ytFuture = YouTubeService.searchSongs(query, limit: (limit / 2).ceil().clamp(6, 15));
 
     // 1. Search JioSaavn direct high-fidelity CDN
     try {
@@ -102,18 +106,11 @@ class MusicApiService {
             assignedLang = 'Hindi';
           }
 
-          // Assign realistic platform source badge
-          MusicSource source;
+          // Assign Spotify or JioSaavn badge for CDN tracks (YouTube tracks come from YouTubeService)
           final hash = (title + artist).hashCode.abs();
-          if (hash % 3 == 0) {
-            source = MusicSource.spotify;
-          } else if (hash % 3 == 1) {
-            source = MusicSource.youtube;
-          } else {
-            source = MusicSource.jiosaavn;
-          }
+          final MusicSource source = (hash % 2 == 0) ? MusicSource.spotify : MusicSource.jiosaavn;
 
-          results.add(
+          jioResults.add(
             Song(
               id: 'js_$id',
               title: title,
@@ -134,6 +131,16 @@ class MusicApiService {
       }
     } catch (e) {
       debugPrint('JioSaavn search error: $e');
+    }
+
+    final List<Song> ytResults = await ytFuture;
+
+    // Interleave JioSaavn/Spotify and real YouTube tracks
+    final List<Song> results = [];
+    final maxLen = jioResults.length > ytResults.length ? jioResults.length : ytResults.length;
+    for (int i = 0; i < maxLen; i++) {
+      if (i < jioResults.length) results.add(jioResults[i]);
+      if (i < ytResults.length) results.add(ytResults[i]);
     }
 
     // 2. Fallback to iTunes if needed
@@ -527,7 +534,19 @@ class MusicApiService {
         );
       }
 
-      // 5. Generate YouTube Music Official Artist Mixes
+      // 5. Fetch real YouTube Music playlists + Generate fallback YouTube Mixes
+      try {
+        final realYtPlaylists = await YouTubeService.searchPlaylists(primaryArtist, limit: 2);
+        for (final pl in realYtPlaylists) {
+          if (!seenIds.contains(pl.id)) {
+            seenIds.add(pl.id);
+            playlists.add(pl);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error searching real YouTube playlists: $e');
+      }
+
       // a) "[Artist] • YouTube Music Mix"
       final ytSongs = pool.where((s) => s.source == MusicSource.youtube).toList();
       final poolYt = ytSongs.isNotEmpty ? ytSongs : pool;
