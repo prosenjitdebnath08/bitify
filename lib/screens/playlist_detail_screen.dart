@@ -114,15 +114,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = _activePalette;
-    final songs = _filteredSongs;
-    final isPlayingThisPlaylist = widget.state.isPlaying &&
-        widget.playlist.songs.any((s) => s.id == widget.state.currentSong?.id);
+    return AnimatedBuilder(
+      animation: Listenable.merge([widget.state, DownloadService()]),
+      builder: (context, _) {
+        final p = _activePalette;
+        final songs = _filteredSongs;
+        final isPlayingThisPlaylist = widget.state.isPlaying &&
+            widget.playlist.songs.any((s) => s.id == widget.state.currentSong?.id);
 
-    // Calculate wash fade based on scroll: BitChord fades out wash at ~280-340px
-    final washOpacity = (1.0 - (_scrollOffset / 320.0)).clamp(0.0, 1.0);
+        // Calculate wash fade based on scroll: BitChord fades out wash at ~280-340px
+        final washOpacity = (1.0 - (_scrollOffset / 320.0)).clamp(0.0, 1.0);
 
-    return Scaffold(
+        return Scaffold(
       backgroundColor: p.background,
       body: Stack(
         children: [
@@ -274,6 +277,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
         ],
       ),
+    );
+      },
     );
   }
 

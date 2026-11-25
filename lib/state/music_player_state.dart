@@ -42,6 +42,10 @@ class MusicPlayerState extends ChangeNotifier {
   bool _isSingleSongMode = false;
   // True when playing a user-selected Playlist (preserves exact track order on next/previous)
   bool _isPlaylistQueue = false;
+  List<Song> _originalPlaylistQueue = [];
+  int _playSequenceId = 0;
+
+  bool get isPlaylistQueue => _isPlaylistQueue;
 
   // Categorized Catalogs and Playlists (Bollywood, Hollywood, Bengali)
   List<Song> _bollywoodSongs = [];
@@ -402,10 +406,15 @@ class MusicPlayerState extends ChangeNotifier {
         ];
       }
 
-      // Populate real YouTube playlists directly from YouTube
-      final ytTrending = await YouTubeService.searchSongs('top music hits 2025', limit: 15);
-      final ytBollywood = await YouTubeService.searchSongs('bollywood hits songs', limit: 15);
-      final ytLofi = await YouTubeService.searchSongs('lofi chill beats music', limit: 15);
+      // Populate real YouTube playlists directly from YouTube in parallel
+      final ytResults = await Future.wait([
+        YouTubeService.searchSongs('top music hits 2025', limit: 15),
+        YouTubeService.searchSongs('bollywood hits songs', limit: 15),
+        YouTubeService.searchSongs('lofi chill beats music', limit: 15),
+      ]);
+      final ytTrending = ytResults[0];
+      final ytBollywood = ytResults[1];
+      final ytLofi = ytResults[2];
 
       if (ytTrending.isNotEmpty || hBillboard.isNotEmpty || bParty.isNotEmpty) {
         _youtubePlaylists = [
@@ -725,6 +734,7 @@ class MusicPlayerState extends ChangeNotifier {
     bool? isSingleSong,
     bool preserveQueueOrder = false,
   }) async {
+    final seqId = ++_playSequenceId;
     _currentSong = song;
     if (isSingleSong != null) {
       _isSingleSongMode = isSingleSong;
@@ -741,23 +751,33 @@ class MusicPlayerState extends ChangeNotifier {
     if (!preserveQueueOrder) {
       if (newQueue != null && newQueue.isNotEmpty) {
         if (newQueue.length > 1) {
-          // Preserve exact playlist order when playing from a playlist!
+          // Deduplicate while preserving exact playlist order!
+          final seen = <String>{};
+          final deduped = <Song>[];
+          for (final item in newQueue) {
+            if (seen.add(item.id)) {
+              deduped.add(item);
+            }
+          }
+          if (!seen.contains(song.id)) {
+            deduped.insert(0, song);
+          }
           _isPlaylistQueue = true;
+          _originalPlaylistQueue = List.from(deduped);
           if (_isShuffle) {
-            final others = newQueue.where((s) => s.id != song.id).toList()..shuffle();
+            final others = deduped.where((s) => s.id != song.id).toList()..shuffle();
             _queue = [song, ...others];
           } else {
-            _queue = List.from(newQueue);
-            if (!_queue.any((s) => s.id == song.id)) {
-              _queue.insert(0, song);
-            }
+            _queue = List.from(deduped);
           }
         } else {
           _isPlaylistQueue = false;
+          _originalPlaylistQueue = [];
           _queue = List.from(newQueue);
         }
       } else {
         _isPlaylistQueue = false;
+        _originalPlaylistQueue = [];
         final pool = _queue.isNotEmpty ? _queue : MockMusicRepository.allSongs;
         final matching = pool.where((s) =>
           s.id == song.id || (
@@ -786,6 +806,8 @@ class MusicPlayerState extends ChangeNotifier {
 
     try {
       await _audioPlayer.stop();
+      if (seqId != _playSequenceId) return;
+
       String? resolvedAudioUrl = song.audioUrl;
 
       // Resolve real YouTube audio & video streams if this is a YouTube track
@@ -793,7 +815,7 @@ class MusicPlayerState extends ChangeNotifier {
       if (ytVideoId != null) {
         final pair = await YouTubeService.resolveStreamUrls(ytVideoId);
         // Guard against user switching songs while stream resolves
-        if (_currentSong?.id != song.id) return;
+        if (seqId != _playSequenceId || _currentSong?.id != song.id) return;
         if (pair != null) {
           resolvedAudioUrl = pair.audioUrl;
           _currentYoutubeVideoUrl = pair.videoUrl;
@@ -804,6 +826,7 @@ class MusicPlayerState extends ChangeNotifier {
       _resolvedAudioUrl = resolvedAudioUrl;
       if (resolvedAudioUrl != null && resolvedAudioUrl.isNotEmpty && !resolvedAudioUrl.startsWith('yt://')) {
         await _audioPlayer.play(UrlSource(resolvedAudioUrl));
+        if (seqId != _playSequenceId) return;
         // Apply native DSP Equalizer & Audio Effects to the active playback session
         Future.delayed(const Duration(milliseconds: 250), () {
           AudioDspService.attachToPlayerAndApply(
@@ -972,15 +995,24 @@ class MusicPlayerState extends ChangeNotifier {
     _isShuffle = !_isShuffle;
     if (_currentSong != null) {
       final current = _currentSong!;
-      if (_isShuffle) {
-        final matchingOthers = _queue.where((s) =>
-          s.id != current.id &&
-          SpotifyAlgorithmService.isSameLanguage(s, current) &&
-          SpotifyAlgorithmService.isSameGenreCluster(s, current)
-        ).toList()..shuffle();
-        _queue = [current, ...matchingOthers];
+      if (_isPlaylistQueue) {
+        if (_isShuffle) {
+          final others = _queue.where((s) => s.id != current.id).toList()..shuffle();
+          _queue = [current, ...others];
+        } else if (_originalPlaylistQueue.isNotEmpty) {
+          _queue = List.from(_originalPlaylistQueue);
+        }
       } else {
-        _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(current, _queue);
+        if (_isShuffle) {
+          final matchingOthers = _queue.where((s) =>
+            s.id != current.id &&
+            SpotifyAlgorithmService.isSameLanguage(s, current) &&
+            SpotifyAlgorithmService.isSameGenreCluster(s, current)
+          ).toList()..shuffle();
+          _queue = [current, ...matchingOthers];
+        } else {
+          _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(current, _queue);
+        }
       }
     }
     notifyListeners();

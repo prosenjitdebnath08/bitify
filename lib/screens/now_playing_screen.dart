@@ -1538,7 +1538,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
                 return GestureDetector(
                   onTap: () {
-                    widget.state.playSong(s);
+                    widget.state.playSong(
+                      s,
+                      preserveQueueOrder: widget.state.isPlaylistQueue,
+                    );
                   },
                   behavior: HitTestBehavior.opaque,
                   child: Container(

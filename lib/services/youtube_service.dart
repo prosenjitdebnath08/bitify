@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/music_models.dart';
@@ -16,7 +18,9 @@ class YoutubeStreamPair {
 }
 
 /// Service for fetching real YouTube videos, playlists, and playable streams
-/// directly via YouTube's InnerTube API (www.youtube.com, not YouTube Music).
+/// directly via YouTube's InnerTube API (www.youtube.com, not YouTube Music),
+/// with a local loopback Range-proxy so Android MediaPlayer & VideoPlayer
+/// can stream YouTube adaptive formats without 403 errors.
 class YouTubeService {
   static const String _searchEndpoint =
       'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
@@ -30,7 +34,94 @@ class YouTubeService {
       '(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip';
 
   static final Map<String, YoutubeStreamPair> _streamCache = {};
+  static final Map<String, ({String url, String mimeType})> _proxyTargets = {};
+  static HttpServer? _proxyServer;
+  static int? _proxyPort;
+  static int _tokenCounter = 0;
   static String? _cachedVisitorData;
+
+  /// Ensure the local loopback HTTP proxy is running and return its port.
+  static Future<int> _ensureProxyServer() async {
+    if (_proxyServer != null && _proxyPort != null) {
+      return _proxyPort!;
+    }
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _proxyServer = server;
+    _proxyPort = server.port;
+    server.listen(_handleProxyRequest, onError: (e) {
+      debugPrint('YouTube proxy server error: $e');
+    });
+    return server.port;
+  }
+
+  static Future<void> _handleProxyRequest(HttpRequest req) async {
+    final token = req.uri.queryParameters['token'];
+    final target = token != null ? _proxyTargets[token] : null;
+    if (target == null) {
+      req.response.statusCode = HttpStatus.notFound;
+      await req.response.close();
+      return;
+    }
+
+    final client = http.Client();
+    try {
+      final upstreamReq = http.Request('GET', Uri.parse(target.url));
+      upstreamReq.headers['User-Agent'] = _androidVrUa;
+
+      final incomingRange = req.headers.value(HttpHeaders.rangeHeader);
+      // YouTube googlevideo returns 403 if Range is omitted; always send Range!
+      upstreamReq.headers['Range'] =
+          (incomingRange != null && incomingRange.isNotEmpty) ? incomingRange : 'bytes=0-';
+
+      final upstreamRes = await client.send(upstreamReq).timeout(const Duration(seconds: 12));
+
+      if (incomingRange != null && incomingRange.isNotEmpty) {
+        req.response.statusCode = upstreamRes.statusCode;
+      } else {
+        // Android MediaPlayer expects 200 OK when it didn't send a Range header
+        req.response.statusCode = upstreamRes.statusCode == 206 ? HttpStatus.ok : upstreamRes.statusCode;
+      }
+
+      req.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+      req.response.headers.set(
+        HttpHeaders.contentTypeHeader,
+        upstreamRes.headers['content-type'] ?? target.mimeType,
+      );
+
+      final contentRange = upstreamRes.headers['content-range'];
+      if (contentRange != null) {
+        if (incomingRange != null && incomingRange.isNotEmpty) {
+          req.response.headers.set(HttpHeaders.contentRangeHeader, contentRange);
+        }
+        // Extract total length or chunk length for Content-Length
+        final contentLen = upstreamRes.headers['content-length'];
+        if (contentLen != null) {
+          req.response.headers.set(HttpHeaders.contentLengthHeader, contentLen);
+        }
+      }
+
+      await upstreamRes.stream.pipe(req.response);
+    } catch (e) {
+      debugPrint('YouTube proxy stream error: $e');
+      try {
+        req.response.statusCode = HttpStatus.badGateway;
+        await req.response.close();
+      } catch (_) {}
+    } finally {
+      client.close();
+    }
+  }
+
+  static Future<String> _registerProxyUrl(String remoteUrl, String mimeType) async {
+    final port = await _ensureProxyServer();
+    final token = 'yt_${++_tokenCounter}_${DateTime.now().millisecondsSinceEpoch}';
+    _proxyTargets[token] = (url: remoteUrl, mimeType: mimeType);
+    // Keep cache bounded
+    if (_proxyTargets.length > 40) {
+      _proxyTargets.remove(_proxyTargets.keys.first);
+    }
+    return 'http://127.0.0.1:$port/yt?token=$token';
+  }
 
   /// Extract raw YouTube video ID from a song ID (`yt_<id>`) or `yt://<id>` URL.
   static String? extractVideoId(Song song) {
@@ -39,7 +130,10 @@ class YouTubeService {
     }
     if (song.id.startsWith('yt_')) {
       final raw = song.id.substring(3).trim();
-      if (raw.isNotEmpty && !raw.startsWith('mix_') && !raw.startsWith('hits_') && !raw.startsWith('mock_')) {
+      if (raw.isNotEmpty &&
+          !raw.startsWith('mix_') &&
+          !raw.startsWith('hits_') &&
+          !raw.startsWith('mock_')) {
         return raw;
       }
     }
@@ -101,7 +195,6 @@ class YouTubeService {
           : 'YouTube';
 
       final lengthText = v['lengthText']?['simpleText']?.toString();
-      // Skip live streams without lengthText
       if (lengthText == null || lengthText.isEmpty) continue;
       final durationSec = _parseDurationText(lengthText);
       if (durationSec < 30 || durationSec > 1800) continue;
@@ -239,8 +332,8 @@ class YouTubeService {
     return _cachedVisitorData;
   }
 
-  /// Resolve direct playable audio & video stream URLs for a YouTube video ID
-  /// using BitChord's ANDROID_VR 1.65.10 InnerTube player client.
+  /// Resolve direct playable audio & video stream URLs (proxied via localhost Range proxy)
+  /// for a YouTube video ID using ANDROID_VR 1.65.10 InnerTube player client.
   static Future<YoutubeStreamPair?> resolveStreamUrls(String videoId) async {
     if (videoId.trim().isEmpty) return null;
     if (_streamCache.containsKey(videoId)) {
@@ -284,54 +377,52 @@ class YouTubeService {
         final streamingData = data['streamingData'] as Map<String, dynamic>?;
         if (streamingData == null) return null;
 
-        final formats = (streamingData['formats'] as List?) ?? [];
         final adaptive = (streamingData['adaptiveFormats'] as List?) ?? [];
 
-        // Pick best audio/mp4 or audio/webm stream from adaptiveFormats
+        // Pick best audio/mp4 (AAC) stream from adaptiveFormats
         String? bestAudioUrl;
+        String audioMime = 'audio/mp4';
         int bestAudioBitrate = -1;
         for (final f in adaptive) {
           final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
           final url = f['url']?.toString();
           if (url == null || url.isEmpty) continue;
-          if (mime.startsWith('audio/mp4') || mime.startsWith('audio/')) {
+          if (mime.startsWith('audio/')) {
             final bitrate = int.tryParse(f['bitrate']?.toString() ?? '0') ?? 0;
-            // Prefer m4a (audio/mp4) for broad Android AudioPlayer compatibility
             final bonus = mime.startsWith('audio/mp4') ? 1000000 : 0;
             if (bitrate + bonus > bestAudioBitrate) {
               bestAudioBitrate = bitrate + bonus;
               bestAudioUrl = url;
+              audioMime = mime.split(';').first.trim();
             }
           }
         }
 
-        // Pick best muxed mp4 or adaptive mp4 video stream for the 16:9 rectangle box
+        // Pick H.264 (avc1) video/mp4 <= 720p for broad Android hardware decode compatibility
         String? bestVideoUrl;
-        for (final f in formats) {
+        int bestVideoHeight = -1;
+        for (final f in adaptive) {
           final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
           final url = f['url']?.toString();
-          if (url != null && url.isNotEmpty && mime.contains('mp4')) {
-            bestVideoUrl = url;
-            break;
-          }
-        }
-        if (bestVideoUrl == null) {
-          for (final f in adaptive) {
-            final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
-            final url = f['url']?.toString();
-            final height = int.tryParse(f['height']?.toString() ?? '0') ?? 0;
-            if (url != null && url.isNotEmpty && mime.startsWith('video/mp4') && height <= 720) {
+          final height = int.tryParse(f['height']?.toString() ?? '0') ?? 0;
+          if (url != null && url.isNotEmpty && mime.startsWith('video/mp4') && height <= 720) {
+            final isAvc1 = mime.contains('avc1') ? 1000 : 0;
+            if (height + isAvc1 > bestVideoHeight) {
+              bestVideoHeight = height + isAvc1;
               bestVideoUrl = url;
-              break;
             }
           }
         }
 
-        bestAudioUrl ??= bestVideoUrl;
         if (bestAudioUrl != null && bestAudioUrl.isNotEmpty) {
+          final proxiedAudio = await _registerProxyUrl(bestAudioUrl, audioMime);
+          final proxiedVideo = (bestVideoUrl != null && bestVideoUrl.isNotEmpty)
+              ? await _registerProxyUrl(bestVideoUrl, 'video/mp4')
+              : null;
+
           final pair = YoutubeStreamPair(
-            audioUrl: bestAudioUrl,
-            videoUrl: bestVideoUrl,
+            audioUrl: proxiedAudio,
+            videoUrl: proxiedVideo,
             userAgent: _androidVrUa,
           );
           _streamCache[videoId] = pair;
