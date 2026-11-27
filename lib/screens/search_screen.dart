@@ -5,6 +5,7 @@ import '../services/music_api_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/bitchord_card_motion.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/song_tile.dart';
 import 'playlist_detail_screen.dart';
 
@@ -440,10 +441,12 @@ class _SearchScreenState extends State<SearchScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          pl.coverUrl,
+                        child: CachedArtworkImage(
+                          url: pl.coverUrl,
                           height: 125,
                           width: 135,
+                          cacheWidth: 300,
+                          cacheHeight: 280,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             height: 125,

@@ -7,6 +7,7 @@ import '../services/download_service.dart';
 import '../services/spotify_algorithm_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/neumorphic_box.dart';
 import 'equalizer_screen.dart';
 
@@ -27,6 +28,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   bool _showPlaylist = false;
   VideoPlayerController? _videoController;
   String? _activeVideoUrl;
+  int _videoSyncGeneration = 0;
 
   @override
   void initState() {
@@ -64,6 +66,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
     if (videoUrl == null || videoUrl.isEmpty) {
       if (_videoController != null) {
+        _videoSyncGeneration++;
         final old = _videoController;
         _videoController = null;
         _activeVideoUrl = null;
@@ -74,6 +77,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     }
 
     if (_activeVideoUrl != videoUrl) {
+      final syncGen = ++_videoSyncGeneration;
       _activeVideoUrl = videoUrl;
       final old = _videoController;
       _videoController = null;
@@ -85,7 +89,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
         );
         await controller.initialize();
-        if (!mounted || _activeVideoUrl != videoUrl) {
+        if (!mounted || _activeVideoUrl != videoUrl || syncGen != _videoSyncGeneration) {
           await controller.dispose();
           return;
         }
@@ -96,6 +100,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         }
         if (widget.state.isPlaying) {
           await controller.play();
+        }
+        if (!mounted || syncGen != _videoSyncGeneration) {
+          await controller.dispose();
+          return;
         }
         setState(() {
           _videoController = controller;
@@ -150,8 +158,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
         final duration = widget.state.durationSeconds > 0
             ? widget.state.durationSeconds
             : (song.durationSeconds > 0 ? song.durationSeconds : 200);
-        final currentSeconds = widget.state.positionSeconds.clamp(0, duration);
-        final progress = (currentSeconds / duration).clamp(0.0, 1.0);
 
         return Scaffold(
           backgroundColor: p.background,
@@ -445,12 +451,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                       child: _buildVerticalControlCapsule(song, p),
                     ),
 
-                    // 5. Bottom Neumorphic Seekbar & Controls
+                    // 5. Bottom Neumorphic Seekbar & Controls (isolates 1s timer ticks cleanly)
                     Positioned(
                       bottom: 40,
                       left: 20,
                       right: 20,
-                      child: _buildBottomSeekBar(song, p, progress, currentSeconds, duration),
+                      child: _buildBottomSeekBar(song, p, duration),
                     ),
 
                     // 6. Visible Bottom Logo in Player (Bitify Master Audio / Spotify Algorithm)
@@ -475,8 +481,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     final hasVideo = _videoController != null && _videoController!.value.isInitialized;
     final isPlaying = widget.state.isPlaying;
 
-    return Container(
-      decoration: BoxDecoration(
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         color: p.surface,
         boxShadow: [
@@ -514,8 +521,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                   ),
                 )
               else
-                Image.network(
-                  song.coverUrl,
+                CachedArtworkImage(
+                  url: song.coverUrl,
+                  cacheWidth: 720,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.black87,
@@ -632,6 +640,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -656,9 +665,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   Widget _buildVinylTurntable(Song song, SongColorPalette p, Size size) {
     final diskSize = size.width * 0.88;
 
-    return Container(
-      width: diskSize,
-      height: diskSize,
+    return RepaintBoundary(
+      child: Container(
+        width: diskSize,
+        height: diskSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: p.surface,
@@ -712,10 +722,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
             children: [
               // Vinyl grooves pattern
               ClipOval(
-                child: Image.network(
-                  song.coverUrl,
+                child: CachedArtworkImage(
+                  url: song.coverUrl,
                   width: double.infinity,
                   height: double.infinity,
+                  cacheWidth: 640,
+                  cacheHeight: 640,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(color: Colors.black87),
                 ),
@@ -747,6 +759,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -1266,12 +1279,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
     );
   }
 
-  /// Bottom Seekbar Card
+  /// Bottom Seekbar Card (isolates 1s timer ticks cleanly)
   Widget _buildBottomSeekBar(
     Song song,
     SongColorPalette p,
-    double progress,
-    int currentSeconds,
     int duration,
   ) {
     return NeumorphicBox(
@@ -1280,60 +1291,71 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Slider
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              activeTrackColor: p.primary,
-              inactiveTrackColor: p.shadowDark.withOpacity(0.5),
-              thumbColor: p.primary,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-            ),
-            child: Slider(
-              value: _isDraggingSeek ? _dragSeekValue : progress,
-              onChangeStart: (val) {
-                setState(() {
-                  _isDraggingSeek = true;
-                  _dragSeekValue = val;
-                });
-              },
-              onChanged: (val) {
-                setState(() {
-                  _dragSeekValue = val;
-                });
-              },
-              onChangeEnd: (val) {
-                setState(() {
-                  _isDraggingSeek = false;
-                });
-                widget.state.seekTo((val * duration).toInt());
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _formatTime(currentSeconds),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: p.textSecondary,
+          ValueListenableBuilder<int>(
+            valueListenable: widget.state.positionNotifier,
+            builder: (context, rawPos, _) {
+              final currentSeconds = rawPos.clamp(0, duration);
+              final progress = (currentSeconds / duration).clamp(0.0, 1.0);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 4,
+                      activeTrackColor: p.primary,
+                      inactiveTrackColor: p.shadowDark.withOpacity(0.5),
+                      thumbColor: p.primary,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    ),
+                    child: Slider(
+                      value: _isDraggingSeek ? _dragSeekValue : progress,
+                      onChangeStart: (val) {
+                        setState(() {
+                          _isDraggingSeek = true;
+                          _dragSeekValue = val;
+                        });
+                      },
+                      onChanged: (val) {
+                        setState(() {
+                          _dragSeekValue = val;
+                        });
+                      },
+                      onChangeEnd: (val) {
+                        setState(() {
+                          _isDraggingSeek = false;
+                        });
+                        widget.state.seekTo((val * duration).toInt());
+                      },
+                    ),
                   ),
-                ),
-                Text(
-                  _formatTime(duration),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: p.textSecondary,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatTime(currentSeconds),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          _formatTime(duration),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: p.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 8),
           // Interactive Player Options: Shuffle, Mode, Repeat
@@ -1561,10 +1583,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            s.coverUrl,
+                          child: CachedArtworkImage(
+                            url: s.coverUrl,
                             width: 38,
                             height: 38,
+                            cacheWidth: 100,
+                            cacheHeight: 100,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
                               width: 38,
@@ -1718,7 +1742,6 @@ class _FullscreenYoutubeScreenState extends State<_FullscreenYoutubeScreen> {
           final duration = widget.state.durationSeconds > 0
               ? widget.state.durationSeconds
               : (song.durationSeconds > 0 ? song.durationSeconds : 200);
-          final pos = widget.state.positionSeconds.clamp(0, duration);
 
           return GestureDetector(
             onTap: () => setState(() => _showControls = !_showControls),
@@ -1843,35 +1866,41 @@ class _FullscreenYoutubeScreenState extends State<_FullscreenYoutubeScreen> {
                             ),
 
                             // Bottom Seekbar
-                            Column(
-                              children: [
-                                SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    activeTrackColor: const Color(0xFFFF0000),
-                                    inactiveTrackColor: Colors.white24,
-                                    thumbColor: Colors.white,
-                                    trackHeight: 3.5,
-                                  ),
-                                  child: Slider(
-                                    value: pos.toDouble(),
-                                    min: 0,
-                                    max: duration.toDouble(),
-                                    onChanged: (v) {
-                                      widget.state.seekTo(v.round());
-                                    },
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(_fmt(pos), style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                                      Text(_fmt(duration), style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            ValueListenableBuilder<int>(
+                              valueListenable: widget.state.positionNotifier,
+                              builder: (context, rawPos, _) {
+                                final pos = rawPos.clamp(0, duration);
+                                return Column(
+                                  children: [
+                                    SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        activeTrackColor: const Color(0xFFFF0000),
+                                        inactiveTrackColor: Colors.white24,
+                                        thumbColor: Colors.white,
+                                        trackHeight: 3.5,
+                                      ),
+                                      child: Slider(
+                                        value: pos.toDouble(),
+                                        min: 0,
+                                        max: duration.toDouble(),
+                                        onChanged: (v) {
+                                          widget.state.seekTo(v.round());
+                                        },
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(_fmt(pos), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                          Text(_fmt(duration), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ],
                         ),

@@ -36,6 +36,7 @@ class YouTubeService {
       '(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip';
 
   static final Map<String, YoutubeStreamPair> _streamCache = {};
+  static final Map<String, Future<YoutubeStreamPair?>> _inFlightResolves = {};
   static final Map<String, ({String url, String mimeType, String ua})> _proxyTargets = {};
   static HttpServer? _proxyServer;
   static int? _proxyPort;
@@ -439,10 +440,37 @@ class YouTubeService {
     return null;
   }
 
+  /// Pre-warm stream URLs for an upcoming YouTube track in the background.
+  static void prewarmStream(String videoId) {
+    final cleanId = videoId.trim();
+    if (cleanId.isEmpty ||
+        _streamCache.containsKey(cleanId) ||
+        _inFlightResolves.containsKey(cleanId)) {
+      return;
+    }
+    unawaited(resolveStreamUrls(cleanId));
+  }
+
   /// Resolve direct playable audio & video stream URLs (proxied via localhost Range proxy)
   /// using VISIONOS client (unthrottled full-song & video streams) with ANDROID_VR fallback.
-  static Future<YoutubeStreamPair?> resolveStreamUrls(String videoId) async {
-    if (videoId.trim().isEmpty) return null;
+  static Future<YoutubeStreamPair?> resolveStreamUrls(String videoId) {
+    final cleanId = videoId.trim();
+    if (cleanId.isEmpty) return Future.value(null);
+    final cached = _streamCache[cleanId];
+    if (cached != null) return Future.value(cached);
+
+    final inFlight = _inFlightResolves[cleanId];
+    if (inFlight != null) return inFlight;
+
+    final future = _resolveStreamUrlsInternal(cleanId).whenComplete(() {
+      _inFlightResolves.remove(cleanId);
+    });
+    _inFlightResolves[cleanId] = future;
+    return future;
+  }
+
+  static Future<YoutubeStreamPair?> _resolveStreamUrlsInternal(String videoId) async {
+    if (videoId.isEmpty) return null;
     if (_streamCache.containsKey(videoId)) {
       return _streamCache[videoId];
     }

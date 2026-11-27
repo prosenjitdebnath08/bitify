@@ -253,6 +253,14 @@ class ThemeColorService extends ChangeNotifier {
       return;
     }
 
+    if (song.coverUrl.trim().isEmpty) {
+      const fallback = Color(0xFF0284C7);
+      _baseColorCache[song.id] = fallback;
+      _currentPalette = SongColorPalette.fromColor(fallback, themeMode: _themeMode);
+      notifyListeners();
+      return;
+    }
+
     try {
       final palette = await PaletteGenerator.fromImageProvider(
         NetworkImage(song.coverUrl),

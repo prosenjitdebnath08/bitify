@@ -5,6 +5,7 @@ import '../services/music_api_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/bitchord_card_motion.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/neumorphic_box.dart';
 import '../widgets/song_tile.dart';
 import 'playlist_detail_screen.dart';
@@ -380,8 +381,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                               ],
                                             ),
                                             child: ClipOval(
-                                              child: Image.network(
-                                                art['image'] as String,
+                                              child: CachedArtworkImage(
+                                                url: art['image'] as String,
+                                                cacheWidth: 180,
+                                                cacheHeight: 180,
                                                 fit: BoxFit.cover,
                                                 errorBuilder: (_, __, ___) => Icon(Icons.person, color: p.textSecondary),
                                               ),
@@ -505,10 +508,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                               children: [
                                                 ClipRRect(
                                                   borderRadius: BorderRadius.circular(14),
-                                                  child: Image.network(
-                                                    pl.coverUrl,
+                                                  child: CachedArtworkImage(
+                                                    url: pl.coverUrl,
                                                     width: 124,
                                                     height: 105,
+                                                    cacheWidth: 280,
+                                                    cacheHeight: 240,
                                                     fit: BoxFit.cover,
                                                     errorBuilder: (_, __, ___) => Container(width: 124, height: 105, color: Colors.white12),
                                                   ),
@@ -819,8 +824,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         ],
                                       ),
                                       child: ClipOval(
-                                        child: Image.network(
-                                          artist.avatarUrl,
+                                        child: CachedArtworkImage(
+                                          url: artist.avatarUrl,
+                                          cacheWidth: 200,
+                                          cacheHeight: 200,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, __, ___) => Icon(Icons.person, color: p.textSecondary),
                                         ),

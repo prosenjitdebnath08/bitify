@@ -6,6 +6,7 @@ import '../services/theme_color_service.dart';
 import '../services/update_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/bitchord_card_motion.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/neumorphic_box.dart';
 import '../widgets/update_dialog.dart';
 import 'equalizer_screen.dart';
@@ -80,6 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
             color: p.background,
             child: SafeArea(
               child: CustomScrollView(
+                cacheExtent: 700,
+                physics: const BouncingScrollPhysics(),
                 slivers: [
                   // App Bar with clean Bitify logo, user greeting, and Equalizer
                   SliverToBoxAdapter(
@@ -613,10 +616,12 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    playlist.coverUrl,
+                  child: CachedArtworkImage(
+                    url: playlist.coverUrl,
                     height: 125,
                     width: 135,
+                    cacheWidth: 320,
+                    cacheHeight: 300,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _buildImageFallback(width: 135, height: 125, borderRadius: 16, palette: palette),
                   ),
@@ -1011,8 +1016,10 @@ class _HomeScreenState extends State<HomeScreen> {
             glowColor: p.glow,
             padding: const EdgeInsets.all(5),
             child: ClipOval(
-              child: Image.network(
-                song.coverUrl,
+              child: CachedArtworkImage(
+                url: song.coverUrl,
+                cacheWidth: 200,
+                cacheHeight: 200,
                 fit: BoxFit.cover,
                 errorBuilder: (_, __, ___) => _buildImageFallback(borderRadius: 38, palette: p),
               ),

@@ -5,6 +5,7 @@ import '../services/download_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/bitchord_card_motion.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/song_tile.dart';
 import 'playlist_detail_screen.dart';
@@ -206,9 +207,11 @@ class _LibraryScreenState extends State<LibraryScreen> with SingleTickerProvider
                     Expanded(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          playlist.coverUrl,
+                        child: CachedArtworkImage(
+                          url: playlist.coverUrl,
                           width: double.infinity,
+                          cacheWidth: 320,
+                          cacheHeight: 320,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             color: p.surface,

@@ -10,6 +10,7 @@ class GlassCard extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? color;
   final Border? border;
+  final bool enableBlur;
 
   const GlassCard({
     super.key,
@@ -20,6 +21,7 @@ class GlassCard extends StatelessWidget {
     this.onTap,
     this.color,
     this.border,
+    this.enableBlur = false,
   });
 
   @override
@@ -28,7 +30,7 @@ class GlassCard extends StatelessWidget {
       animation: ThemeColorService(),
       builder: (context, _) {
         final p = ThemeColorService().palette;
-        final cardColor = color ?? (p.isDark ? p.surface.withOpacity(0.70) : p.surface.withOpacity(0.88));
+        final cardColor = color ?? (p.isDark ? p.surface.withOpacity(0.86) : p.surface.withOpacity(0.94));
         final cardBorder = border ??
             Border.all(
               color: p.isDark ? Colors.white.withOpacity(0.12) : Colors.white.withOpacity(0.65),
@@ -36,38 +38,50 @@ class GlassCard extends StatelessWidget {
             );
         final cardShadow = [
           BoxShadow(
-            color: p.shadowDark.withOpacity(p.isDark ? 0.65 : 0.40),
-            blurRadius: 14,
+            color: p.shadowDark.withOpacity(p.isDark ? 0.55 : 0.35),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
           if (!p.isDark)
             BoxShadow(
               color: p.shadowLight,
-              blurRadius: 10,
+              blurRadius: 8,
               offset: const Offset(-2, -2),
             ),
         ];
+
+        final innerMaterial = Material(
+          color: Colors.transparent,
+          child: Padding(
+            padding: padding ?? const EdgeInsets.all(16),
+            child: child,
+          ),
+        );
 
         Widget content = Container(
           margin: margin,
           decoration: BoxDecoration(
             color: cardColor,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                cardColor.withOpacity(0.98),
+                p.background.withOpacity(p.isDark ? 0.88 : 0.82),
+              ],
+            ),
             borderRadius: BorderRadius.circular(radius),
             border: cardBorder,
             boxShadow: cardShadow,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-              child: Material(
-                color: Colors.transparent,
-                child: Padding(
-                  padding: padding ?? const EdgeInsets.all(16),
-                  child: child,
-                ),
-              ),
-            ),
+            child: enableBlur
+                ? BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                    child: innerMaterial,
+                  )
+                : innerMaterial,
           ),
         );
 

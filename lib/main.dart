@@ -27,17 +27,28 @@ class BitifyApp extends StatefulWidget {
   State<BitifyApp> createState() => _BitifyAppState();
 }
 
-class _BitifyAppState extends State<BitifyApp> {
+class _BitifyAppState extends State<BitifyApp> with WidgetsBindingObserver {
   late final MusicPlayerState _playerState;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _playerState = MusicPlayerState();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      _playerState.persistNow();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _playerState.dispose();
     super.dispose();
   }

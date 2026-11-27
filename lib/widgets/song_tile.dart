@@ -3,6 +3,7 @@ import '../models/music_models.dart';
 import '../services/download_service.dart';
 import '../services/theme_color_service.dart';
 import '../theme/app_theme.dart';
+import 'cached_artwork_image.dart';
 import 'source_badge.dart';
 
 class SongTile extends StatelessWidget {
@@ -66,10 +67,12 @@ class SongTile extends StatelessWidget {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          song.coverUrl,
+                        child: CachedArtworkImage(
+                          url: song.coverUrl,
                           width: 50,
                           height: 50,
+                          cacheWidth: 120,
+                          cacheHeight: 120,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             width: 50,

@@ -6,6 +6,7 @@ import '../services/download_service.dart';
 import '../services/theme_color_service.dart';
 import '../state/music_player_state.dart';
 import '../widgets/bitchord_card_motion.dart';
+import '../widgets/cached_artwork_image.dart';
 import '../widgets/mini_player_bar.dart';
 
 /// Full-screen BitChord v1.9 playlist detail screen:
@@ -38,7 +39,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   SongColorPalette? _extractedPalette;
   bool _showInlineSearch = false;
   String _searchQuery = '';
-  double _scrollOffset = 0.0;
+  final ValueNotifier<double> _scrollOffsetNotifier = ValueNotifier<double>(0.0);
 
   @override
   void initState() {
@@ -48,10 +49,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   void _onScroll() {
-    if (mounted) {
-      setState(() {
-        _scrollOffset = _scrollController.offset;
-      });
+    if (!mounted || !_scrollController.hasClients) return;
+    final off = _scrollController.offset;
+    if ((off - _scrollOffsetNotifier.value).abs() > 1.0) {
+      _scrollOffsetNotifier.value = off;
     }
   }
 
@@ -74,6 +75,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _scrollOffsetNotifier.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -122,21 +124,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         final isPlayingThisPlaylist = widget.state.isPlaying &&
             widget.playlist.songs.any((s) => s.id == widget.state.currentSong?.id);
 
-        // Calculate wash fade based on scroll: BitChord fades out wash at ~280-340px
-        final washOpacity = (1.0 - (_scrollOffset / 320.0)).clamp(0.0, 1.0);
-
         return Scaffold(
       backgroundColor: p.background,
       body: Stack(
         children: [
-          // 1. BitChord PageBackground Dynamic Wash
+          // 1. BitChord PageBackground Dynamic Wash (scroll-reactive without full rebuilds)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             height: 440,
-            child: Opacity(
-              opacity: washOpacity,
+            child: ValueListenableBuilder<double>(
+              valueListenable: _scrollOffsetNotifier,
+              builder: (context, offset, child) {
+                final washOpacity = (1.0 - (offset / 320.0)).clamp(0.0, 1.0);
+                return Opacity(
+                  opacity: washOpacity,
+                  child: child,
+                );
+              },
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -159,6 +165,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             bottom: false,
             child: CustomScrollView(
               controller: _scrollController,
+              cacheExtent: 600,
               physics: const BouncingScrollPhysics(),
               slivers: [
                 // Top App Bar
@@ -315,25 +322,28 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
 
           // Header Title when scrolled down
-          if (_scrollOffset > 180)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  widget.playlist.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: p.textPrimary,
+          Expanded(
+            child: ValueListenableBuilder<double>(
+              valueListenable: _scrollOffsetNotifier,
+              builder: (context, offset, _) {
+                if (offset <= 180) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    widget.playlist.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: p.textPrimary,
+                    ),
                   ),
-                ),
-              ),
-            )
-          else
-            const Spacer(),
+                );
+              },
+            ),
+          ),
 
           // More Options Button
           GestureDetector(
@@ -405,8 +415,10 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(21),
-                child: Image.network(
-                  widget.playlist.coverUrl,
+                child: CachedArtworkImage(
+                  url: widget.playlist.coverUrl,
+                  cacheWidth: 480,
+                  cacheHeight: 480,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: p.surface,
@@ -873,10 +885,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 // Song Artwork
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    song.coverUrl,
+                  child: CachedArtworkImage(
+                    url: song.coverUrl,
                     width: 44,
                     height: 44,
+                    cacheWidth: 120,
+                    cacheHeight: 120,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
                       width: 44,
@@ -993,10 +1007,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      song.coverUrl,
+                    child: CachedArtworkImage(
+                      url: song.coverUrl,
                       width: 48,
                       height: 48,
+                      cacheWidth: 120,
+                      cacheHeight: 120,
                       fit: BoxFit.cover,
                     ),
                   ),

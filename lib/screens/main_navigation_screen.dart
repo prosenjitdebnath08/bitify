@@ -20,31 +20,38 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      HomeScreen(state: widget.state),
+      ExploreScreen(state: widget.state),
+      SearchScreen(state: widget.state),
+      LibraryScreen(state: widget.state),
+      SettingsScreen(state: widget.state),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([widget.state, ThemeColorService()]),
-      builder: (context, _) {
-        final p = ThemeColorService().palette;
+    final screenContent = IndexedStack(
+      index: _currentIndex,
+      children: _pages,
+    );
 
-        final pages = [
-          HomeScreen(state: widget.state),
-          ExploreScreen(state: widget.state),
-          SearchScreen(state: widget.state),
-          LibraryScreen(state: widget.state),
-          SettingsScreen(state: widget.state),
-        ];
+    return AnimatedBuilder(
+      animation: ThemeColorService(),
+      builder: (context, child) {
+        final p = ThemeColorService().palette;
 
         return Scaffold(
           backgroundColor: p.background,
           body: Stack(
             children: [
-              // Screen content
-              IndexedStack(
-                index: _currentIndex,
-                children: pages,
-              ),
+              // Screen content kept stable across player state notifications
+              child!,
 
               // Bottom floating mini player + neumorphic navigation bar
               Positioned(
@@ -57,41 +64,42 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Persistent Mini Player (if a track is selected)
-                      if (widget.state.currentSong != null)
-                        MiniPlayerBar(state: widget.state),
+                      // Persistent Mini Player (listens internally)
+                      MiniPlayerBar(state: widget.state),
 
-                      // Neumorphic Frosted Bottom Nav
-                      ClipRRect(
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                          child: Container(
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: p.surface.withOpacity(0.92),
-                              border: Border(
-                                top: BorderSide(
-                                  color: Colors.white.withOpacity(0.45),
-                                  width: 1.0,
+                      // Neumorphic Frosted Bottom Nav isolated in RepaintBoundary
+                      RepaintBoundary(
+                        child: ClipRRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                            child: Container(
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: p.surface.withOpacity(0.92),
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Colors.white.withOpacity(0.45),
+                                    width: 1.0,
+                                  ),
                                 ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: p.shadowDark.withOpacity(0.4),
+                                    offset: const Offset(0, -4),
+                                    blurRadius: 10,
+                                  ),
+                                ],
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: p.shadowDark.withOpacity(0.4),
-                                  offset: const Offset(0, -4),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                _buildNavItem(0, Icons.home_rounded, 'Home', p),
-                                _buildNavItem(1, Icons.explore_rounded, 'Explore', p),
-                                _buildNavItem(2, Icons.search_rounded, 'Search', p),
-                                _buildNavItem(3, Icons.library_music_rounded, 'Library', p),
-                                _buildNavItem(4, Icons.settings_rounded, 'Settings', p),
-                              ],
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildNavItem(0, Icons.home_rounded, 'Home', p),
+                                  _buildNavItem(1, Icons.explore_rounded, 'Explore', p),
+                                  _buildNavItem(2, Icons.search_rounded, 'Search', p),
+                                  _buildNavItem(3, Icons.library_music_rounded, 'Library', p),
+                                  _buildNavItem(4, Icons.settings_rounded, 'Settings', p),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -104,6 +112,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         );
       },
+      child: screenContent,
     );
   }
 

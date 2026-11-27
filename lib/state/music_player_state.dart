@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/music_models.dart';
 import '../data/mock_music_repository.dart';
 import '../services/audio_dsp_service.dart';
@@ -14,13 +16,31 @@ enum BitifyRepeatMode { off, all, one }
 class MusicPlayerState extends ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   
+  static const String _prefLastSongKey = 'bitify_last_song_v1';
+  static const String _prefLastPositionKey = 'bitify_last_position_v1';
+  static const String _prefLastDurationKey = 'bitify_last_duration_v1';
+  static const String _prefLastQueueKey = 'bitify_last_queue_v1';
+  static const String _prefOrigPlaylistQueueKey = 'bitify_orig_playlist_queue_v1';
+  static const String _prefIsPlaylistQueueKey = 'bitify_is_playlist_queue_v1';
+  static const String _prefIsSingleSongModeKey = 'bitify_is_single_song_mode_v1';
+  static const String _prefIsShuffleKey = 'bitify_is_shuffle_v1';
+  static const String _prefRepeatModeKey = 'bitify_repeat_mode_v1';
+  static const String _prefHistoryKey = 'bitify_history_v1';
+  static const String _prefLikedIdsKey = 'bitify_liked_ids_v1';
+  static const String _prefCustomPlaylistsKey = 'bitify_custom_playlists_v1';
+
   Song? _currentSong;
   String? _resolvedAudioUrl;
   String? _currentYoutubeVideoUrl;
   String? get currentYoutubeVideoUrl => _currentYoutubeVideoUrl;
   bool _isPlaying = false;
-  int _positionSeconds = 0;
+  final ValueNotifier<int> positionNotifier = ValueNotifier<int>(0);
+  int get _positionSeconds => positionNotifier.value;
+  set _positionSeconds(int v) => positionNotifier.value = v;
   int _durationSeconds = 0;
+  int _lastPersistedPosition = -1;
+  bool _hasLoadedCurrentTrackInPlayer = false;
+  int _userPlayEpoch = 0;
   bool _isShuffle = false;
   BitifyRepeatMode _repeatMode = BitifyRepeatMode.all;
   bool _spotifyAlgorithmEnabled = true;
@@ -159,25 +179,203 @@ class MusicPlayerState extends ChangeNotifier {
     _hollywoodSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'english').toList();
     _bengaliSongs = MockMusicRepository.allSongs.where((s) => SpotifyAlgorithmService.normalizeLanguage(s) == 'bengali').toList();
 
-    if (_queue.isNotEmpty) {
-      _currentSong = _queue.first;
-      _durationSeconds = _currentSong!.durationSeconds;
-      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(_currentSong!, _queue);
-      ThemeColorService().updateForSong(_currentSong);
-    }
     _initAudioListeners();
+    _restorePlaybackState();
     _loadOnlineTrendingCatalog();
     AudioDspService.init();
   }
 
+  List<Song> _decodeSongList(String? raw) {
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw) as List?;
+      if (decoded == null) return [];
+      return decoded
+          .whereType<Map>()
+          .map((m) => Song.fromJson(Map<String, dynamic>.from(m)))
+          .where((s) => s.id.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _restorePlaybackState() async {
+    Song? restoredSong;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_userPlayEpoch > 0) return;
+
+      // Restore liked IDs
+      final likedList = prefs.getStringList(_prefLikedIdsKey);
+      if (likedList != null) {
+        _likedSongIds
+          ..clear()
+          ..addAll(likedList);
+      }
+
+      // Restore custom playlists
+      final rawCustomPls = prefs.getString(_prefCustomPlaylistsKey);
+      if (rawCustomPls != null && rawCustomPls.isNotEmpty) {
+        final decoded = jsonDecode(rawCustomPls) as List?;
+        if (decoded != null) {
+          final parsed = decoded
+              .whereType<Map>()
+              .map((m) => Playlist.fromJson(Map<String, dynamic>.from(m)))
+              .where((p) => p.id.isNotEmpty)
+              .toList();
+          if (parsed.isNotEmpty) {
+            _customPlaylists = parsed;
+          }
+        }
+      }
+
+      // Restore history
+      final restoredHistory = _decodeSongList(prefs.getString(_prefHistoryKey));
+      if (restoredHistory.isNotEmpty) {
+        _history
+          ..clear()
+          ..addAll(restoredHistory);
+      }
+
+      // Restore shuffle & repeat preferences
+      _isShuffle = prefs.getBool(_prefIsShuffleKey) ?? _isShuffle;
+      final repeatStr = prefs.getString(_prefRepeatModeKey);
+      if (repeatStr != null) {
+        for (final m in BitifyRepeatMode.values) {
+          if (m.name == repeatStr) {
+            _repeatMode = m;
+            break;
+          }
+        }
+      }
+
+      // Restore last played song + queue + saved position
+      final rawLastSong = prefs.getString(_prefLastSongKey);
+      if (rawLastSong != null && rawLastSong.isNotEmpty) {
+        restoredSong = Song.fromJson(jsonDecode(rawLastSong) as Map<String, dynamic>);
+      }
+
+      if (_userPlayEpoch > 0) return;
+
+      if (restoredSong != null && restoredSong.id.isNotEmpty) {
+        _currentSong = restoredSong;
+        final savedDur = prefs.getInt(_prefLastDurationKey) ?? restoredSong.durationSeconds;
+        _durationSeconds = savedDur > 0 ? savedDur : restoredSong.durationSeconds;
+        final savedPos = prefs.getInt(_prefLastPositionKey) ?? 0;
+        _positionSeconds = savedPos.clamp(0, _durationSeconds > 0 ? _durationSeconds : 99999);
+        _lastPersistedPosition = _positionSeconds;
+        _isPlaylistQueue = prefs.getBool(_prefIsPlaylistQueueKey) ?? false;
+        _isSingleSongMode = prefs.getBool(_prefIsSingleSongModeKey) ?? false;
+        _hasLoadedCurrentTrackInPlayer = false;
+
+        final restoredQueue = _decodeSongList(prefs.getString(_prefLastQueueKey));
+        if (restoredQueue.isNotEmpty) {
+          _queue = restoredQueue;
+        } else {
+          _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(
+            restoredSong,
+            MockMusicRepository.allSongs,
+          );
+        }
+
+        final restoredOrig = _decodeSongList(prefs.getString(_prefOrigPlaylistQueueKey));
+        _originalPlaylistQueue = restoredOrig;
+
+        ThemeColorService().updateForSong(_currentSong);
+        notifyListeners();
+
+        // Silently pre-resolve YouTube video/audio streams so restored track plays immediately on tap
+        final ytId = YouTubeService.extractVideoId(restoredSong);
+        if (ytId != null) {
+          YouTubeService.resolveStreamUrls(ytId).then((pair) {
+            if (pair != null && _currentSong?.id == restoredSong?.id && _userPlayEpoch == 0) {
+              _resolvedAudioUrl = pair.audioUrl;
+              _currentYoutubeVideoUrl = pair.videoUrl;
+              notifyListeners();
+            }
+          });
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error restoring last playback state: $e');
+    }
+
+    // Fresh install fallback only when user hasn't started playing anything
+    if (_userPlayEpoch == 0 && _currentSong == null && _queue.isNotEmpty) {
+      _currentSong = _queue.first;
+      _durationSeconds = _currentSong!.durationSeconds;
+      _queue = SpotifyAlgorithmService.generateAlgorithmicQueue(_currentSong!, _queue);
+      ThemeColorService().updateForSong(_currentSong);
+      notifyListeners();
+    }
+  }
+
+  Future<void> persistNow() => _persistPlaybackState();
+
+  Future<void> _persistPositionOnly(int secs) async {
+    _lastPersistedPosition = secs;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefLastPositionKey, secs);
+      if (_durationSeconds > 0) {
+        await prefs.setInt(_prefLastDurationKey, _durationSeconds);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistPlaybackState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cur = _currentSong;
+      if (cur != null) {
+        await prefs.setString(_prefLastSongKey, jsonEncode(cur.toJson()));
+        await prefs.setInt(_prefLastPositionKey, _positionSeconds);
+        await prefs.setInt(_prefLastDurationKey, durationSeconds);
+        _lastPersistedPosition = _positionSeconds;
+      }
+      await prefs.setBool(_prefIsPlaylistQueueKey, _isPlaylistQueue);
+      await prefs.setBool(_prefIsSingleSongModeKey, _isSingleSongMode);
+      await prefs.setBool(_prefIsShuffleKey, _isShuffle);
+      await prefs.setString(_prefRepeatModeKey, _repeatMode.name);
+      await prefs.setString(
+        _prefLastQueueKey,
+        jsonEncode(_queue.take(40).map((s) => s.toJson()).toList()),
+      );
+      if (_originalPlaylistQueue.isNotEmpty) {
+        await prefs.setString(
+          _prefOrigPlaylistQueueKey,
+          jsonEncode(_originalPlaylistQueue.take(40).map((s) => s.toJson()).toList()),
+        );
+      } else {
+        await prefs.remove(_prefOrigPlaylistQueueKey);
+      }
+      await prefs.setString(
+        _prefHistoryKey,
+        jsonEncode(_history.take(30).map((s) => s.toJson()).toList()),
+      );
+      await prefs.setStringList(_prefLikedIdsKey, _likedSongIds.toList());
+      await prefs.setString(
+        _prefCustomPlaylistsKey,
+        jsonEncode(_customPlaylists.map((p) => p.toJson()).toList()),
+      );
+    } catch (_) {}
+  }
+
   void _initAudioListeners() {
     _posSub = _audioPlayer.onPositionChanged.listen((pos) {
-      _positionSeconds = pos.inSeconds;
-      notifyListeners();
+      final secs = pos.inSeconds;
+      if (secs != positionNotifier.value) {
+        positionNotifier.value = secs;
+        if ((secs - _lastPersistedPosition).abs() >= 5) {
+          unawaited(_persistPositionOnly(secs));
+        }
+      }
     });
 
     _durSub = _audioPlayer.onDurationChanged.listen((dur) {
-      if (dur.inSeconds > 0) {
+      if (dur.inSeconds > 0 && dur.inSeconds != _durationSeconds) {
         _durationSeconds = dur.inSeconds;
         notifyListeners();
       }
@@ -499,7 +697,7 @@ class MusicPlayerState extends ChangeNotifier {
       if (combined.isNotEmpty) {
         _onlineTrending = combined;
         final cur = _currentSong;
-        if (cur != null) {
+        if (cur != null && !_isPlaylistQueue) {
           final existingIds = _queue.map((s) => s.id).toSet();
           for (final s in combined) {
             if (!existingIds.contains(s.id) &&
@@ -590,6 +788,7 @@ class MusicPlayerState extends ChangeNotifier {
     );
     _customPlaylists.insert(0, newPl);
     notifyListeners();
+    unawaited(_persistPlaybackState());
     return newPl;
   }
 
@@ -609,6 +808,7 @@ class MusicPlayerState extends ChangeNotifier {
           source: pl.source,
         );
         notifyListeners();
+        unawaited(_persistPlaybackState());
       }
     } else {
       final mockIdx = MockMusicRepository.playlists.indexWhere((p) => p.id == playlistId);
@@ -626,6 +826,7 @@ class MusicPlayerState extends ChangeNotifier {
             source: pl.source,
           ));
           notifyListeners();
+          unawaited(_persistPlaybackState());
         }
       }
     }
@@ -646,6 +847,7 @@ class MusicPlayerState extends ChangeNotifier {
         source: pl.source,
       );
       notifyListeners();
+      unawaited(_persistPlaybackState());
     }
   }
 
@@ -686,9 +888,11 @@ class MusicPlayerState extends ChangeNotifier {
 
   @visibleForTesting
   void setCurrentSongForTest(Song song, {List<Song>? queue, bool isPlaylistQueue = false}) {
+    _userPlayEpoch++;
     _currentSong = song;
     _isPlaying = false;
     _currentYoutubeVideoUrl = null;
+    _hasLoadedCurrentTrackInPlayer = false;
     if (queue != null) {
       _queue = List.from(queue);
     }
@@ -734,8 +938,10 @@ class MusicPlayerState extends ChangeNotifier {
     bool? isSingleSong,
     bool preserveQueueOrder = false,
   }) async {
+    _userPlayEpoch++;
     final seqId = ++_playSequenceId;
     _currentSong = song;
+    _hasLoadedCurrentTrackInPlayer = false;
     if (isSingleSong != null) {
       _isSingleSongMode = isSingleSong;
     } else if (newQueue != null && newQueue.length == 1) {
@@ -744,8 +950,10 @@ class MusicPlayerState extends ChangeNotifier {
       _isSingleSongMode = false;
     }
 
-    if (!_history.any((s) => s.id == song.id)) {
-      _history.insert(0, song);
+    _history.removeWhere((s) => s.id == song.id);
+    _history.insert(0, song);
+    if (_history.length > 30) {
+      _history.removeRange(30, _history.length);
     }
 
     if (!preserveQueueOrder) {
@@ -798,11 +1006,13 @@ class MusicPlayerState extends ChangeNotifier {
 
     // Always start playback cleanly from 0:00 (the very beginning)
     _positionSeconds = 0;
+    _lastPersistedPosition = 0;
     _durationSeconds = song.durationSeconds;
     _currentYoutubeVideoUrl = null;
     _isPlaying = true;
     ThemeColorService().updateForSong(song);
     notifyListeners();
+    unawaited(_persistPlaybackState());
 
     try {
       await _audioPlayer.stop();
@@ -827,6 +1037,8 @@ class MusicPlayerState extends ChangeNotifier {
       if (resolvedAudioUrl != null && resolvedAudioUrl.isNotEmpty && !resolvedAudioUrl.startsWith('yt://')) {
         await _audioPlayer.play(UrlSource(resolvedAudioUrl));
         if (seqId != _playSequenceId) return;
+        _hasLoadedCurrentTrackInPlayer = true;
+        _prewarmNextYoutubeTrack(song);
         // Apply native DSP Equalizer & Audio Effects to the active playback session
         Future.delayed(const Duration(milliseconds: 250), () {
           AudioDspService.attachToPlayerAndApply(
@@ -850,26 +1062,81 @@ class MusicPlayerState extends ChangeNotifier {
     }
   }
 
+  void _prewarmNextYoutubeTrack(Song current) {
+    if (_queue.isEmpty) return;
+    final idx = _queue.indexWhere((s) => s.id == current.id);
+    final nextIdx = idx != -1 ? idx + 1 : 0;
+    if (nextIdx < _queue.length) {
+      final nextSong = _queue[nextIdx];
+      final nextYtId = YouTubeService.extractVideoId(nextSong);
+      if (nextYtId != null) {
+        YouTubeService.prewarmStream(nextYtId);
+      }
+    }
+  }
+
   Future<void> togglePlayPause() async {
+    _userPlayEpoch++;
     if (_currentSong == null && _queue.isNotEmpty) {
       _currentSong = _queue.first;
     }
-    if (_currentSong == null) return;
+    final song = _currentSong;
+    if (song == null) return;
 
     try {
       if (_isPlaying) {
         await _audioPlayer.pause();
         _isPlaying = false;
-      } else {
-        final playUrl = _resolvedAudioUrl ?? _currentSong?.audioUrl;
-        if (playUrl != null && playUrl.isNotEmpty && !playUrl.startsWith('yt://')) {
-          if (_positionSeconds > 0) {
-            await _audioPlayer.resume();
-          } else {
-            await _audioPlayer.play(UrlSource(playUrl));
+        notifyListeners();
+        unawaited(_persistPlaybackState());
+        return;
+      }
+
+      // If track was restored from storage (not yet loaded in AudioPlayer), resolve & play at saved position
+      if (!_hasLoadedCurrentTrackInPlayer) {
+        _isPlaying = true;
+        notifyListeners();
+
+        String? playUrl = _resolvedAudioUrl ?? song.audioUrl;
+        final ytId = YouTubeService.extractVideoId(song);
+        if (ytId != null && (playUrl == null || playUrl.startsWith('yt://'))) {
+          final pair = await YouTubeService.resolveStreamUrls(ytId);
+          if (_currentSong?.id != song.id) return;
+          if (pair != null) {
+            playUrl = pair.audioUrl;
+            _resolvedAudioUrl = pair.audioUrl;
+            _currentYoutubeVideoUrl = pair.videoUrl;
           }
-          _isPlaying = true;
         }
+
+        if (playUrl != null && playUrl.isNotEmpty && !playUrl.startsWith('yt://')) {
+          final resumePos = _positionSeconds > 0 ? Duration(seconds: _positionSeconds) : null;
+          await _audioPlayer.play(UrlSource(playUrl), position: resumePos);
+          _hasLoadedCurrentTrackInPlayer = true;
+          _prewarmNextYoutubeTrack(song);
+          Future.delayed(const Duration(milliseconds: 250), () {
+            AudioDspService.attachToPlayerAndApply(
+              bandGains: _bandGains,
+              bassBoost: _bassBoost,
+              virtualizer: _virtualizer,
+            );
+          });
+          notifyListeners();
+        } else {
+          _isPlaying = false;
+          notifyListeners();
+        }
+        return;
+      }
+
+      final playUrl = _resolvedAudioUrl ?? song.audioUrl;
+      if (playUrl != null && playUrl.isNotEmpty && !playUrl.startsWith('yt://')) {
+        if (_positionSeconds > 0) {
+          await _audioPlayer.resume();
+        } else {
+          await _audioPlayer.play(UrlSource(playUrl));
+        }
+        _isPlaying = true;
       }
       notifyListeners();
     } catch (e) {
@@ -974,7 +1241,7 @@ class MusicPlayerState extends ChangeNotifier {
   Future<void> seekTo(int seconds) async {
     final maxDur = durationSeconds;
     _positionSeconds = seconds.clamp(0, maxDur);
-    notifyListeners();
+    unawaited(_persistPositionOnly(_positionSeconds));
     try {
       await _audioPlayer.seek(Duration(seconds: _positionSeconds));
     } catch (e) {
@@ -989,6 +1256,7 @@ class MusicPlayerState extends ChangeNotifier {
       _likedSongIds.add(songId);
     }
     notifyListeners();
+    unawaited(_persistPlaybackState());
   }
 
   void toggleShuffle() {
@@ -1016,6 +1284,7 @@ class MusicPlayerState extends ChangeNotifier {
       }
     }
     notifyListeners();
+    unawaited(_persistPlaybackState());
   }
 
   void toggleRepeat() {
@@ -1031,6 +1300,7 @@ class MusicPlayerState extends ChangeNotifier {
         break;
     }
     notifyListeners();
+    unawaited(_persistPlaybackState());
   }
 
   void setBandGain(int index, double gain) {
@@ -1192,6 +1462,7 @@ class MusicPlayerState extends ChangeNotifier {
     _stateSub?.cancel();
     _completeSub?.cancel();
     _audioPlayer.dispose();
+    positionNotifier.dispose();
     _sleepTimer?.cancel();
     super.dispose();
   }

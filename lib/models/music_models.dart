@@ -92,6 +92,10 @@ class Song {
       'isLiked': isLiked,
       'language': language,
       'genre': genre,
+      if (lyrics.isNotEmpty)
+        'lyrics': lyrics
+            .map((l) => {'second': l.second, 'text': l.text})
+            .toList(),
     };
   }
 
@@ -100,12 +104,22 @@ class Song {
     try {
       src = MusicSource.values.byName(json['source'] ?? 'spotify');
     } catch (_) {}
+    final rawLyrics = json['lyrics'] as List?;
+    final parsedLyrics = rawLyrics != null
+        ? rawLyrics
+            .whereType<Map>()
+            .map((m) => LyricLine(
+                  second: (m['second'] as num?)?.toInt() ?? 0,
+                  text: m['text']?.toString() ?? '',
+                ))
+            .toList()
+        : const <LyricLine>[];
     return Song(
       id: json['id'] ?? '',
       title: json['title'] ?? 'Unknown',
       artist: json['artist'] ?? 'Unknown Artist',
       album: json['album'] ?? 'Unknown Album',
-      durationSeconds: json['durationSeconds'] ?? 200,
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 200,
       coverUrl: json['coverUrl'] ?? '',
       audioUrl: json['audioUrl'],
       source: src,
@@ -114,6 +128,7 @@ class Song {
       isLiked: json['isLiked'] ?? false,
       language: json['language'] ?? 'English',
       genre: json['genre'] ?? 'Pop',
+      lyrics: parsedLyrics,
     );
   }
 }
@@ -170,4 +185,39 @@ class Playlist {
     this.isCustom = false,
     this.source = MusicSource.spotify,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'coverUrl': coverUrl,
+      'songs': songs.map((s) => s.toJson()).toList(),
+      'isCustom': isCustom,
+      'source': source.name,
+    };
+  }
+
+  factory Playlist.fromJson(Map<String, dynamic> json) {
+    MusicSource src = MusicSource.spotify;
+    try {
+      src = MusicSource.values.byName(json['source'] ?? 'spotify');
+    } catch (_) {}
+    final rawSongs = json['songs'] as List?;
+    final parsedSongs = rawSongs != null
+        ? rawSongs
+            .whereType<Map>()
+            .map((m) => Song.fromJson(Map<String, dynamic>.from(m)))
+            .toList()
+        : const <Song>[];
+    return Playlist(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Playlist',
+      description: json['description']?.toString() ?? '',
+      coverUrl: json['coverUrl']?.toString() ?? '',
+      songs: parsedSongs,
+      isCustom: json['isCustom'] == true,
+      source: src,
+    );
+  }
 }
