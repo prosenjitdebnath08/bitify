@@ -29,12 +29,14 @@ class YouTubeService {
   static const String _playerEndpoint =
       'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
 
+  static const String _visionOsUa =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15';
   static const String _androidVrUa =
       'com.google.android.apps.youtube.vr.oculus/1.65.10 '
       '(Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip';
 
   static final Map<String, YoutubeStreamPair> _streamCache = {};
-  static final Map<String, ({String url, String mimeType})> _proxyTargets = {};
+  static final Map<String, ({String url, String mimeType, String ua})> _proxyTargets = {};
   static HttpServer? _proxyServer;
   static int? _proxyPort;
   static int _tokenCounter = 0;
@@ -97,7 +99,7 @@ class YouTubeService {
         if (upperBound < offset) break;
 
         final upstreamReq = http.Request('GET', Uri.parse(target.url));
-        upstreamReq.headers['User-Agent'] = _androidVrUa;
+        upstreamReq.headers['User-Agent'] = target.ua;
         upstreamReq.headers['Range'] = 'bytes=$offset-$upperBound';
 
         final upstreamRes = await client.send(upstreamReq).timeout(const Duration(seconds: 12));
@@ -166,10 +168,10 @@ class YouTubeService {
     }
   }
 
-  static Future<String> _registerProxyUrl(String remoteUrl, String mimeType) async {
+  static Future<String> _registerProxyUrl(String remoteUrl, String mimeType, String ua) async {
     final port = await _ensureProxyServer();
     final token = 'yt_${++_tokenCounter}_${DateTime.now().millisecondsSinceEpoch}';
-    _proxyTargets[token] = (url: remoteUrl, mimeType: mimeType);
+    _proxyTargets[token] = (url: remoteUrl, mimeType: mimeType, ua: ua);
     // Keep cache bounded
     if (_proxyTargets.length > 40) {
       _proxyTargets.remove(_proxyTargets.keys.first);
@@ -364,13 +366,12 @@ class YouTubeService {
             body: jsonEncode({
               'context': {
                 'client': {
-                  'clientName': 'ANDROID_VR',
-                  'clientVersion': '1.65.10',
-                  'deviceMake': 'Oculus',
-                  'deviceModel': 'Quest 3',
-                  'osName': 'Android',
-                  'osVersion': '12L',
-                  'androidSdkVersion': '32',
+                  'clientName': 'VISIONOS',
+                  'clientVersion': '0.1',
+                  'deviceMake': 'Apple',
+                  'deviceModel': 'RealityDevice14,1',
+                  'osName': 'visionOS',
+                  'osVersion': '1.3.21O771',
                 },
               },
             }),
@@ -386,8 +387,60 @@ class YouTubeService {
     return _cachedVisitorData;
   }
 
+  static Future<Map<String, dynamic>?> _fetchPlayerData({
+    required String videoId,
+    required String? visitorData,
+    required bool useVisionOs,
+  }) async {
+    final ua = useVisionOs ? _visionOsUa : _androidVrUa;
+    final clientPayload = useVisionOs
+        ? {
+            'clientName': 'VISIONOS',
+            'clientVersion': '0.1',
+            'deviceMake': 'Apple',
+            'deviceModel': 'RealityDevice14,1',
+            'osName': 'visionOS',
+            'osVersion': '1.3.21O771',
+            'visitorData': ?visitorData,
+          }
+        : {
+            'clientName': 'ANDROID_VR',
+            'clientVersion': '1.65.10',
+            'deviceMake': 'Oculus',
+            'deviceModel': 'Quest 3',
+            'osName': 'Android',
+            'osVersion': '12L',
+            'androidSdkVersion': '32',
+            'visitorData': ?visitorData,
+          };
+
+    final res = await http
+        .post(
+          Uri.parse(_playerEndpoint),
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': ua,
+            'X-YouTube-Client-Name': useVisionOs ? '101' : '28',
+            'X-YouTube-Client-Version': useVisionOs ? '0.1' : '1.65.10',
+            'X-Goog-Visitor-Id': ?visitorData,
+          },
+          body: jsonEncode({
+            'context': {'client': clientPayload},
+            'videoId': videoId,
+            'contentCheckOk': true,
+            'racyCheckOk': true,
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    return null;
+  }
+
   /// Resolve direct playable audio & video stream URLs (proxied via localhost Range proxy)
-  /// for a YouTube video ID using ANDROID_VR 1.65.10 InnerTube player client.
+  /// using VISIONOS client (unthrottled full-song & video streams) with ANDROID_VR fallback.
   static Future<YoutubeStreamPair?> resolveStreamUrls(String videoId) async {
     if (videoId.trim().isEmpty) return null;
     if (_streamCache.containsKey(videoId)) {
@@ -396,92 +449,75 @@ class YouTubeService {
 
     try {
       final visitorData = await _getVisitorData();
-      final res = await http
-          .post(
-            Uri.parse(_playerEndpoint),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': _androidVrUa,
-              'X-YouTube-Client-Name': '28',
-              'X-YouTube-Client-Version': '1.65.10',
-              'X-Goog-Visitor-Id': ?visitorData,
-            },
-            body: jsonEncode({
-              'context': {
-                'client': {
-                  'clientName': 'ANDROID_VR',
-                  'clientVersion': '1.65.10',
-                  'deviceMake': 'Oculus',
-                  'deviceModel': 'Quest 3',
-                  'osName': 'Android',
-                  'osVersion': '12L',
-                  'androidSdkVersion': '32',
-                  'visitorData': ?visitorData,
-                },
-              },
-              'videoId': videoId,
-              'contentCheckOk': true,
-              'racyCheckOk': true,
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      String usedUa = _visionOsUa;
+      var data = await _fetchPlayerData(
+        videoId: videoId,
+        visitorData: visitorData,
+        useVisionOs: true,
+      );
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final streamingData = data['streamingData'] as Map<String, dynamic>?;
-        if (streamingData == null) return null;
+      var streamingData = data?['streamingData'] as Map<String, dynamic>?;
+      if (streamingData == null) {
+        usedUa = _androidVrUa;
+        data = await _fetchPlayerData(
+          videoId: videoId,
+          visitorData: visitorData,
+          useVisionOs: false,
+        );
+        streamingData = data?['streamingData'] as Map<String, dynamic>?;
+      }
+      if (streamingData == null) return null;
 
-        final adaptive = (streamingData['adaptiveFormats'] as List?) ?? [];
+      final adaptive = (streamingData['adaptiveFormats'] as List?) ?? [];
 
-        // Pick best audio/mp4 (AAC) stream from adaptiveFormats
-        String? bestAudioUrl;
-        String audioMime = 'audio/mp4';
-        int bestAudioBitrate = -1;
-        for (final f in adaptive) {
-          final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
-          final url = f['url']?.toString();
-          if (url == null || url.isEmpty) continue;
-          if (mime.startsWith('audio/')) {
-            final bitrate = int.tryParse(f['bitrate']?.toString() ?? '0') ?? 0;
-            final bonus = mime.startsWith('audio/mp4') ? 1000000 : 0;
-            if (bitrate + bonus > bestAudioBitrate) {
-              bestAudioBitrate = bitrate + bonus;
-              bestAudioUrl = url;
-              audioMime = mime.split(';').first.trim();
-            }
+      // Pick best audio/mp4 (AAC) stream from adaptiveFormats
+      String? bestAudioUrl;
+      String audioMime = 'audio/mp4';
+      int bestAudioBitrate = -1;
+      for (final f in adaptive) {
+        final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
+        final url = f['url']?.toString();
+        if (url == null || url.isEmpty) continue;
+        if (mime.startsWith('audio/')) {
+          final bitrate = int.tryParse(f['bitrate']?.toString() ?? '0') ?? 0;
+          final bonus = mime.startsWith('audio/mp4') ? 1000000 : 0;
+          if (bitrate + bonus > bestAudioBitrate) {
+            bestAudioBitrate = bitrate + bonus;
+            bestAudioUrl = url;
+            audioMime = mime.split(';').first.trim();
           }
         }
+      }
 
-        // Pick H.264 (avc1) video/mp4 <= 720p for broad Android hardware decode compatibility
-        String? bestVideoUrl;
-        int bestVideoHeight = -1;
-        for (final f in adaptive) {
-          final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
-          final url = f['url']?.toString();
-          final height = int.tryParse(f['height']?.toString() ?? '0') ?? 0;
-          if (url != null && url.isNotEmpty && mime.startsWith('video/mp4') && height <= 720) {
-            final isAvc1 = mime.contains('avc1') ? 1000 : 0;
-            if (height + isAvc1 > bestVideoHeight) {
-              bestVideoHeight = height + isAvc1;
-              bestVideoUrl = url;
-            }
+      // Pick H.264 (avc1) video/mp4 <= 720p for broad Android hardware decode compatibility
+      String? bestVideoUrl;
+      int bestVideoHeight = -1;
+      for (final f in adaptive) {
+        final mime = (f['mimeType']?.toString() ?? '').toLowerCase();
+        final url = f['url']?.toString();
+        final height = int.tryParse(f['height']?.toString() ?? '0') ?? 0;
+        if (url != null && url.isNotEmpty && mime.startsWith('video/mp4') && height <= 720) {
+          final isAvc1 = mime.contains('avc1') ? 1000 : 0;
+          if (height + isAvc1 > bestVideoHeight) {
+            bestVideoHeight = height + isAvc1;
+            bestVideoUrl = url;
           }
         }
+      }
 
-        if (bestAudioUrl != null && bestAudioUrl.isNotEmpty) {
-          final proxiedAudio = await _registerProxyUrl(bestAudioUrl, audioMime);
-          final proxiedVideo = (bestVideoUrl != null && bestVideoUrl.isNotEmpty)
-              ? await _registerProxyUrl(bestVideoUrl, 'video/mp4')
-              : null;
+      if (bestAudioUrl != null && bestAudioUrl.isNotEmpty) {
+        final proxiedAudio = await _registerProxyUrl(bestAudioUrl, audioMime, usedUa);
+        final proxiedVideo = (bestVideoUrl != null && bestVideoUrl.isNotEmpty)
+            ? await _registerProxyUrl(bestVideoUrl, 'video/mp4', usedUa)
+            : null;
 
-          final pair = YoutubeStreamPair(
-            audioUrl: proxiedAudio,
-            videoUrl: proxiedVideo,
-            userAgent: _androidVrUa,
-          );
-          _streamCache[videoId] = pair;
-          return pair;
-        }
+        final pair = YoutubeStreamPair(
+          audioUrl: proxiedAudio,
+          videoUrl: proxiedVideo,
+          userAgent: usedUa,
+        );
+        _streamCache[videoId] = pair;
+        return pair;
       }
     } catch (e) {
       debugPrint('YouTubeService.resolveStreamUrls error ($videoId): $e');
