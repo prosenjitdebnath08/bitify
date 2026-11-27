@@ -80,7 +80,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
       await old?.dispose();
 
       try {
-        final controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(videoUrl),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
         await controller.initialize();
         if (!mounted || _activeVideoUrl != videoUrl) {
           await controller.dispose();
