@@ -23,7 +23,7 @@ class UpdateInfo {
 
 class UpdateService {
   // Current app version installed
-  static const String currentVersion = 'v1.0.32';
+  static const String currentVersion = 'v1.0.33';
 
   // GitHub Release Endpoint for Bitify
   static const String _releasesApiUrl =

@@ -479,7 +479,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
   /// YouTube 16:9 Rectangle Box replacing the rotary disc when playing YouTube songs
   Widget _buildYoutubeRectangleBox(Song song, SongColorPalette p, Size size) {
     final hasVideo = _videoController != null && _videoController!.value.isInitialized;
-    final isPlaying = widget.state.isPlaying;
 
     return RepaintBoundary(
       child: Container(
@@ -579,27 +578,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-
-              // Center tap to play/pause
-              Center(
-                child: GestureDetector(
-                  onTap: widget.state.togglePlayPause,
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withOpacity(0.45),
-                      border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.2),
-                    ),
-                    child: Icon(
-                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
                   ),
                 ),
               ),
