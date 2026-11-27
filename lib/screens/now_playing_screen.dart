@@ -435,10 +435,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
                         ),
                       ),
 
-                    // 4. Floating Left Control Capsule Bar (Exact match to reference design)
+                    // 4. Floating Left Control Capsule Bar (positioned below track header & swipe pill)
                     Positioned(
                       left: 20,
-                      top: size.height * 0.20,
+                      top: size.height * 0.255,
                       child: _buildVerticalControlCapsule(song, p),
                     ),
 
@@ -757,7 +757,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen>
 
     return NeumorphicBox(
       width: 54,
-      height: 480,
+      height: 430,
       borderRadius: 27,
       hasGlow: true,
       glowColor: p.glow.withOpacity(0.3),

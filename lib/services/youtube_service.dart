@@ -63,48 +63,102 @@ class YouTubeService {
       return;
     }
 
+    // Parse incoming Range header (e.g. "bytes=0-" or "bytes=1024-2047")
+    final incomingRange = req.headers.value(HttpHeaders.rangeHeader);
+    final bool hasIncomingRange = incomingRange != null && incomingRange.isNotEmpty;
+    int start = 0;
+    int? requestedEnd;
+    if (hasIncomingRange && incomingRange.startsWith('bytes=')) {
+      final rangePart = incomingRange.substring(6).split(',').first.trim();
+      final parts = rangePart.split('-');
+      if (parts.isNotEmpty && parts[0].isNotEmpty) {
+        start = int.tryParse(parts[0]) ?? 0;
+      }
+      if (parts.length > 1 && parts[1].isNotEmpty) {
+        requestedEnd = int.tryParse(parts[1]);
+      }
+    }
+
+    const int chunkSize = 512 * 1024; // 512 KB bounded chunks (YouTube 403s open-ended bytes=0-)
     final client = http.Client();
+    bool headersSent = false;
+
     try {
-      final upstreamReq = http.Request('GET', Uri.parse(target.url));
-      upstreamReq.headers['User-Agent'] = _androidVrUa;
+      int offset = start;
+      int? totalSize;
 
-      final incomingRange = req.headers.value(HttpHeaders.rangeHeader);
-      // YouTube googlevideo returns 403 if Range is omitted; always send Range!
-      upstreamReq.headers['Range'] =
-          (incomingRange != null && incomingRange.isNotEmpty) ? incomingRange : 'bytes=0-';
+      while (true) {
+        final int upperBound = requestedEnd != null
+            ? ((offset + chunkSize - 1) < requestedEnd ? (offset + chunkSize - 1) : requestedEnd)
+            : (totalSize != null && (offset + chunkSize - 1) >= totalSize
+                ? totalSize - 1
+                : offset + chunkSize - 1);
 
-      final upstreamRes = await client.send(upstreamReq).timeout(const Duration(seconds: 12));
+        if (upperBound < offset) break;
 
-      if (incomingRange != null && incomingRange.isNotEmpty) {
-        req.response.statusCode = upstreamRes.statusCode;
-      } else {
-        // Android MediaPlayer expects 200 OK when it didn't send a Range header
-        req.response.statusCode = upstreamRes.statusCode == 206 ? HttpStatus.ok : upstreamRes.statusCode;
+        final upstreamReq = http.Request('GET', Uri.parse(target.url));
+        upstreamReq.headers['User-Agent'] = _androidVrUa;
+        upstreamReq.headers['Range'] = 'bytes=$offset-$upperBound';
+
+        final upstreamRes = await client.send(upstreamReq).timeout(const Duration(seconds: 12));
+
+        if (upstreamRes.statusCode >= 400) {
+          debugPrint('YouTube proxy upstream ${upstreamRes.statusCode} for ${target.mimeType} (bytes=$offset-$upperBound)');
+          if (!headersSent) {
+            req.response.statusCode = upstreamRes.statusCode;
+          }
+          break;
+        }
+
+        // Parse total size from Content-Range: bytes 0-524287/3456789
+        final cr = upstreamRes.headers['content-range'];
+        if (cr != null && cr.contains('/')) {
+          final totalStr = cr.split('/').last.trim();
+          totalSize ??= int.tryParse(totalStr);
+        }
+
+        if (!headersSent) {
+          headersSent = true;
+          final effectiveEnd = requestedEnd ?? (totalSize != null ? totalSize - 1 : null);
+          req.response.statusCode = hasIncomingRange ? HttpStatus.partialContent : HttpStatus.ok;
+          req.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+          req.response.headers.set(
+            HttpHeaders.contentTypeHeader,
+            upstreamRes.headers['content-type'] ?? target.mimeType,
+          );
+          if (totalSize != null && effectiveEnd != null) {
+            final totalToSend = effectiveEnd - start + 1;
+            req.response.headers.set(HttpHeaders.contentLengthHeader, '$totalToSend');
+            if (hasIncomingRange) {
+              req.response.headers.set(
+                HttpHeaders.contentRangeHeader,
+                'bytes $start-$effectiveEnd/$totalSize',
+              );
+            }
+          }
+        }
+
+        int bytesInChunk = 0;
+        await for (final data in upstreamRes.stream) {
+          req.response.add(data);
+          bytesInChunk += data.length;
+        }
+
+        if (bytesInChunk == 0) break;
+        offset += bytesInChunk;
+
+        if (requestedEnd != null && offset > requestedEnd) break;
+        if (totalSize != null && offset >= totalSize) break;
       }
 
-      req.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
-      req.response.headers.set(
-        HttpHeaders.contentTypeHeader,
-        upstreamRes.headers['content-type'] ?? target.mimeType,
-      );
-
-      final contentRange = upstreamRes.headers['content-range'];
-      if (contentRange != null) {
-        if (incomingRange != null && incomingRange.isNotEmpty) {
-          req.response.headers.set(HttpHeaders.contentRangeHeader, contentRange);
-        }
-        // Extract total length or chunk length for Content-Length
-        final contentLen = upstreamRes.headers['content-length'];
-        if (contentLen != null) {
-          req.response.headers.set(HttpHeaders.contentLengthHeader, contentLen);
-        }
-      }
-
-      await upstreamRes.stream.pipe(req.response);
+      await req.response.flush();
+      await req.response.close();
     } catch (e) {
       debugPrint('YouTube proxy stream error: $e');
       try {
-        req.response.statusCode = HttpStatus.badGateway;
+        if (!headersSent) {
+          req.response.statusCode = HttpStatus.badGateway;
+        }
         await req.response.close();
       } catch (_) {}
     } finally {

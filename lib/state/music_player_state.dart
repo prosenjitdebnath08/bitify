@@ -408,9 +408,9 @@ class MusicPlayerState extends ChangeNotifier {
 
       // Populate real YouTube playlists directly from YouTube in parallel
       final ytResults = await Future.wait([
-        YouTubeService.searchSongs('top music hits 2025', limit: 15),
-        YouTubeService.searchSongs('bollywood hits songs', limit: 15),
-        YouTubeService.searchSongs('lofi chill beats music', limit: 15),
+        YouTubeService.searchSongs('english pop songs official music video', limit: 20),
+        YouTubeService.searchSongs('arijit singh official music video', limit: 20),
+        YouTubeService.searchSongs('lofi hip hop chill beats track', limit: 20),
       ]);
       final ytTrending = ytResults[0];
       final ytBollywood = ytResults[1];

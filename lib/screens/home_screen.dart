@@ -274,14 +274,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 28),
                           ],
 
-                          // 3. YOUTUBE MUSIC MIXES
+                          // 3. YOUTUBE MIXES
                           if (_selectedCategory == 'All' || _selectedCategory == 'YouTube') ...[
                             _buildSectionHeader('YouTube Mixes', p, badge: 'TRENDING MIXES', badgeColor: const Color(0xFFEF4444)),
                             const SizedBox(height: 14),
                             _buildPlaylistCarousel(
                               widget.state.youtubePlaylists,
                               p,
-                              badgeLabel: 'YOUTUBE MUSIC',
+                              badgeLabel: 'YOUTUBE',
                               badgeColor: const Color(0xFFEF4444),
                             ),
                             const SizedBox(height: 28),

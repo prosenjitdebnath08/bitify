@@ -393,7 +393,7 @@ class _SearchScreenState extends State<SearchScreen> {
           switch (pl.source) {
             case MusicSource.youtube:
               badgeColor = const Color(0xFFEF4444);
-              badgeText = 'YOUTUBE MUSIC';
+              badgeText = 'YOUTUBE';
               break;
             case MusicSource.spotify:
               badgeColor = const Color(0xFF10B981);
